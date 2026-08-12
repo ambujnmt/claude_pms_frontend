@@ -1,0 +1,86 @@
+:root { /* ── Font ──────────────────────────────────────────────────── */
+  --font-display: 'Inter', sans-serif;
+  --font-body:    'Inter', sans-serif;
+
+  /* ── Font sizes (per spec) ─────────────────────────────────── */
+  --text-body:       14px;   /* body, sidebar, forms          */
+  --text-table:      13px;   /* table rows                    */
+  --text-card-title: 16px;   /* card headings                 */
+  --text-page-title: 28px;   /* page / section titles         */
+
+  /* convenience aliases */
+  --text-xs:   11px;
+  --text-sm:   13px;   /* tables */
+  --text-base: 14px;   /* body / sidebar / forms */
+  --text-md:   14px;
+  --text-lg:   16px;   /* card titles */
+  --text-xl:   20px;
+  --text-2xl:  24px;
+  --text-3xl:  28px;   /* page titles */
+
+  /* ── Gantt-chart Blue Palette ───────────────────────────────── */
+  --bg-base:       #EDF2FA;
+  --bg-surface:    #F4F7FC;
+  --bg-card:       #FFFFFF;
+  --bg-card-hover: #FAFCFF;
+  --bg-elevated:   #E6EDF7;
+  --border:        #C8D8EE;
+  --border-bright: #A4BEDC;
+
+  --navy:        #1B2E6B;
+  --navy-mid:    #1E3A80;
+  --navy-dim:    rgba(27,46,107,0.08);
+  --accent:      #2E6DB4;
+  --accent-dim:  rgba(46,109,180,0.10);
+  --accent-glow: rgba(46,109,180,0.22);
+  --sky:         #4A90D9;
+  --sky-dim:     rgba(74,144,217,0.12);
+  --powder:      #A8CEEC;
+  --powder-dim:  rgba(168,206,236,0.25);
+
+  --success:     #1A6B3C;
+  --success-dim: rgba(26,107,60,0.09);
+  --warning:     #8B5E0A;
+  --warning-dim: rgba(139,94,10,0.09);
+  --danger:      #9B1C1C;
+  --danger-dim:  rgba(155,28,28,0.09);
+  --violet:      #4C3A9E;
+  --violet-dim:  rgba(76,58,158,0.09);
+  --orange:      #A85010;
+  --orange-dim:  rgba(168,80,16,0.09);
+
+  --text:       #111827;
+  --text-dim:   #374151;
+  --text-muted: #6B7A99;
+
+  --radius:    9px;
+  --radius-lg: 13px;
+  --shadow-sm: 0 1px 3px rgba(27,46,107,0.08);
+  --shadow:    0 4px 14px rgba(27,46,107,0.10);
+  --shadow-lg: 0 12px 34px rgba(27,46,107,0.14);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { height: 100%; width: 100%; }
+
+body { font-family: var(--font-body);
+  font-size:   var(--text-body);
+  background:  var(--bg-base);
+  color:       var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-elevated); }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 6px; }
+
+button { cursor: pointer; font-family: var(--font-body); }
+input, textarea, select { font-family: var(--font-body); font-size: var(--text-body); }
+a { text-decoration: none; color: inherit; }
+
+@keyframes fadeIn  { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+@keyframes scaleIn { from { opacity:0; transform:scale(0.97);      } to { opacity:1; transform:scale(1);     } }
+
+.fade-in  { animation: fadeIn  0.28s ease forwards; }
+.scale-in { animation: scaleIn 0.18s ease forwards; }
