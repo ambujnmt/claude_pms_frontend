@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = 'https://pmsapi.site2demo.in/api';
+const BASE_URL = 'https://site2demo.in/nexus-api-auth/public/api';
 const TOKEN_KEY = 'nexus_pm_token';
 
 /* ── Axios instance ─────────────────────────────────────────── */
