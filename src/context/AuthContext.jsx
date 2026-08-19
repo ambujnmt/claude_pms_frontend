@@ -1,15 +1,15 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import authService from '../services/authService';
-import { getToken } from '../services/api';
+import { getToken, clearToken } from '../services/api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
-  const [loading, setLoading] = useState(true);  // true while validating stored token
+  const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
 
-  /* On mount — if a token exists, validate it and restore the session */
+  /* On mount — validate stored token */
   useEffect(() => {
     const restore = async () => {
       if (!getToken()) { setLoading(false); return; }
@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
         const me = await authService.me();
         setUser(me);
       } catch {
-        // Token invalid/expired — will redirect to login via interceptor
+        clearToken();
       } finally {
         setLoading(false);
       }
@@ -38,12 +38,19 @@ export function AuthProvider({ children }) {
     }
   };
 
+  /* ── Signout — clears token, resets state, redirects to /login ── */
   const logout = async () => {
-    await authService.logout();
-    setUser(null);
+    try {
+      await authService.logout();
+    } catch {
+      // even if API call fails, clear local session
+    } finally {
+      clearToken();
+      setUser(null);
+      window.location.href = '/#/login';   // hard redirect — clears all app state
+    }
   };
 
-  /* Convenience flags matching the rest of the app */
   const isManagement = user?.role === 'management';
   const isPM         = user?.role === 'pm'  || user?.role === 'management';
   const isBD         = user?.role === 'bd'  || user?.role === 'management';
