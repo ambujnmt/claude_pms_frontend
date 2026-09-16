@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card, Badge, Btn, Modal, Field, inputStyle, ConfirmModal, formatCurrency, EmptyState, PageHeader, ActionMenu } from '../components/UI';
+import { Card, Badge, Btn, Modal, Field, inputStyle, ConfirmModal, EmptyState, PageHeader, ActionMenu } from '../components/UI';
 import { Plus } from 'lucide-react';
 import serviceTypeService from '../services/serviceTypeService';
 
@@ -9,7 +9,7 @@ const ICONS      = ['💻','📱','🤖','🔍','📣','📲','🖥️','✍️'
 const EMPTY      = { name:'', icon:'💻', color:'#1B2E6B', description:'' };
 
 export default function ServicesPage() {
-  const { serviceTypes, setServiceTypes, clientServices, isManagement } = useApp();
+  const { serviceTypes, setServiceTypes, clientServices, isManagement , fmt } = useApp();
   const [form, setForm]           = useState(EMPTY);
   const [editing, setEditing]     = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -101,7 +101,7 @@ export default function ServicesPage() {
                 <p style={{ fontSize:14, color:'var(--text-muted)', lineHeight:1.6, marginBottom:12, minHeight:36 }}>{s.description}</p>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingTop:10, borderTop:'1px solid var(--border)' }}>
                   <span style={{ fontSize:14, color:'var(--text-muted)' }}>{clientServices.filter(cs=>cs.serviceId===s.id).length} client{clientServices.filter(cs=>cs.serviceId===s.id).length!==1?'s':''}</span>
-                  {revenue > 0 && <span style={{ fontWeight:700, fontSize:14, color:'var(--success)' }}>{formatCurrency(revenue)}/mo</span>}
+                  {revenue > 0 && <span style={{ fontWeight:700, fontSize:14, color:'var(--success)' }}>{fmt(revenue)}/mo</span>}
                 </div>
               </Card>
             );

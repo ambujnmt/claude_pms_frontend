@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, Badge, StatusBadge, Btn, Modal, Field, inputStyle, ConfirmModal, formatCurrency, formatDate, ActionMenu, PageHeader, EmptyState } from '../components/UI';
+import { Card, Badge, StatusBadge, Btn, Modal, Field, inputStyle, ConfirmModal, formatDate, ActionMenu, PageHeader, EmptyState } from '../components/UI';
 import { Search, MapPin, Mail, Building2, Plus, Loader } from 'lucide-react';
 import clientService from '../services/clientService';
 
@@ -9,7 +9,7 @@ const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Re
 const EMPTY = { name:'', contactPerson:'', email:'', phone:'', city:'', industry:'', status:'active', notes:'' };
 
 export default function ClientsPage() {
-  const { clients, setClients, projects, clientServices, isManagement, isBD } = useApp();
+  const { clients, setClients, projects, clientServices, isManagement, isBD , fmt } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch]       = useState('');
@@ -145,7 +145,7 @@ export default function ClientsPage() {
               <div style={{ display:'flex', gap:6, paddingTop:10, borderTop:'1px solid var(--border)', flexWrap:'wrap' }}>
                 <Chip label={`${stats.projectCount} Projects`} color="#2E6DB4"/>
                 <Chip label={`${stats.serviceCount} Services`} color="#4C3A9E"/>
-                {stats.monthlyRevenue > 0 && <Chip label={`${formatCurrency(stats.monthlyRevenue)}/mo`} color="var(--success)"/>}
+                {stats.monthlyRevenue > 0 && <Chip label={`${fmt(stats.monthlyRevenue)}/mo`} color="var(--success)"/>}
               </div>
 
               {(isManagement || isBD) && (

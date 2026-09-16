@@ -14,23 +14,15 @@ import CategoryPage        from './pages/CategoryPage';
 import HostingPage         from './pages/HostingPage';
 import ServicesPage        from './pages/ServicesPage';
 import MaintenancePage     from './pages/MaintenancePage';
+import CurrenciesPage      from './pages/CurrenciesPage';
 
-/* ── Protects every route inside Layout ─────────────────────── */
 function ProtectedLayout() {
   const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', background: '#EDF2FA',
-        fontSize: 14, color: '#6B7A99', fontFamily: 'Inter, sans-serif',
-      }}>
-        Loading…
-      </div>
-    );
-  }
-
+  if (loading) return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#EDF2FA', fontSize:14, color:'#6B7A99', fontFamily:'Inter, sans-serif' }}>
+      Loading…
+    </div>
+  );
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Layout />;
 }
@@ -41,10 +33,7 @@ export default function App() {
       <AppProvider>
         <HashRouter>
           <Routes>
-            {/* Public */}
             <Route path="/login" element={<LoginPage />} />
-
-            {/* Protected */}
             <Route path="/" element={<ProtectedLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="clients"          element={<ClientsPage />} />
@@ -57,6 +46,7 @@ export default function App() {
               <Route path="hosting"          element={<HostingPage />} />
               <Route path="services"         element={<ServicesPage />} />
               <Route path="maintenance"      element={<MaintenancePage />} />
+              <Route path="currencies"       element={<CurrenciesPage />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Route>
           </Routes>

@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, StatusBadge, ProgressBar, Badge, formatCurrency, formatDate, Btn, ConfirmModal, PageHeader, EmptyState } from '../components/UI';
+import { Card, StatusBadge, ProgressBar, Badge, formatDate, Btn, ConfirmModal, PageHeader, EmptyState } from '../components/UI';
 import { Search, Plus, Calendar, AlertCircle } from 'lucide-react';
 import AddProjectModal from '../components/AddProjectModal';
 import projectService from '../services/projectService';
 
 export default function ProjectsPage() {
-  const { projects, setProjects, isBD, isManagement, showAddProject, setShowAddProject, clients } = useApp();
+  const { projects, setProjects, isBD, isManagement, showAddProject, setShowAddProject, clients , fmt } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch]       = useState('');
@@ -102,7 +102,7 @@ export default function ProjectsPage() {
 
               <div style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap' }}>
                 <Badge label={p.category} color={catColor[p.category]||'#2E6DB4'}/>
-                <Badge label={formatCurrency(p.budget)} color="var(--text-muted)" bg="var(--bg-elevated)"/>
+                <Badge label={fmt(p.budget)} color="var(--text-muted)" bg="var(--bg-elevated)"/>
               </div>
 
               {p.clientCommitment && (
