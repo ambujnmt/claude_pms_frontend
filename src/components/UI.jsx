@@ -168,6 +168,7 @@ export function formatCurrency(amount) { if (amount >= 100000) return `₹${(amo
   if (amount >= 1000)   return `₹${(amount/1000).toFixed(0)}K`;
   return `₹${amount}`;
 }
+export const formatAmount = formatCurrency;
 
 export function formatDate(d) { if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
