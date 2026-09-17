@@ -16,13 +16,13 @@ const clientService = {
 
   /* POST /api/clients */
   create: async (payload) => {
-    const { data } = await api.post('/clients', toSnakeCase(payload));
+    const { data } = await api.post('/clients', toSnake(payload));
     return data.data;
   },
 
   /* PUT /api/clients/:id */
   update: async (id, payload) => {
-    const { data } = await api.put(`/clients/${id}`, toSnakeCase(payload));
+    const { data } = await api.put(`/clients/${id}`, toSnake(payload));
     return data.data;
   },
 
@@ -33,18 +33,17 @@ const clientService = {
 
 };
 
-/* Convert React camelCase keys → Laravel snake_case */
-function toSnakeCase(obj) {
+/* camelCase → snake_case for Laravel */
+function toSnake(c) {
   return {
-    name:           obj.name,
-    contact_person: obj.contactPerson,
-    email:          obj.email,
-    phone:          obj.phone,
-    city:           obj.city,
-    industry:       obj.industry,
-    status:         obj.status,
-    since:          obj.since,
-    notes:          obj.notes,
+    name:           c.name,
+    contact_person: c.contactPerson || null,
+    email:          c.email         || null,
+    phone:          c.phone         || null,
+    city:           c.city          || null,
+    industry:       c.industry      || null,
+    status:         c.status        || 'active',
+    notes:          c.notes         || null,
   };
 }
 
