@@ -36,18 +36,20 @@ const projectService = {
     await api.put(`/projects/${id}/completion`, { completion });
   },
 
-  // ── Milestones ──────────────────────────────────────────────
+  // ── Milestones ─────────────────────────────────────────
   addMilestone: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/milestones`, {
-      name: data.name, due_date: data.dueDate,
+      name: data.name, due_date: data.dueDate || null,
     });
     return res.data.data;
   },
 
   updateMilestone: async (projectId, milestoneId, data) => {
     await api.put(`/projects/${projectId}/milestones/${milestoneId}`, {
-      name: data.name, due_date: data.dueDate,
-      status: data.status, completed_date: data.completedDate,
+      name:            data.name,
+      due_date:        data.dueDate        || null,
+      status:          data.status         || 'upcoming',
+      completed_date:  data.completedDate  || null,
     });
   },
 
@@ -60,19 +62,25 @@ const projectService = {
     return res.data.cycleTargeted;
   },
 
-  // ── Payments ────────────────────────────────────────────────
+  // ── Payments ────────────────────────────────────────────
   addPayment: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/payments`, {
-      amount: data.amount, type: data.type,
-      date: data.date, status: data.status, notes: data.notes,
+      amount: parseFloat(data.amount),
+      type:   data.type,
+      date:   data.date   || null,
+      status: data.status || 'upcoming',
+      notes:  data.notes  || null,
     });
     return res.data.data;
   },
 
   updatePayment: async (projectId, paymentId, data) => {
     await api.put(`/projects/${projectId}/payments/${paymentId}`, {
-      amount: data.amount, type: data.type,
-      date: data.date, status: data.status, notes: data.notes,
+      amount: parseFloat(data.amount),
+      type:   data.type,
+      date:   data.date   || null,
+      status: data.status,
+      notes:  data.notes  || null,
     });
   },
 
@@ -80,10 +88,11 @@ const projectService = {
     await api.delete(`/projects/${projectId}/payments/${paymentId}`);
   },
 
-  // ── Blockers ─────────────────────────────────────────────────
+  // ── Blockers ─────────────────────────────────────────────
   addBlocker: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/blockers`, {
-      type: data.type, description: data.description,
+      type:        data.type,
+      description: data.description,
     });
     return res.data.data;
   },
@@ -96,7 +105,7 @@ const projectService = {
     await api.delete(`/projects/${projectId}/blockers/${blockerId}`);
   },
 
-  // ── Achievements ─────────────────────────────────────────────
+  // ── Achievements ──────────────────────────────────────────
   addAchievement: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/achievements`, {
       description: data.description,
@@ -109,25 +118,24 @@ const projectService = {
   },
 };
 
-/* camelCase → snake_case for project payload */
 function toSnake(p) {
-  return {
-    name:              p.name,
-    client_id:         p.clientId,
-    bd_owner_id:       p.bdOwner,
-    pm_owner_id:       p.pmOwner,
-    category:          p.category,
-    status:            p.status,
-    completion:        p.completion,
-    start_date:        p.startDate,
-    end_date:          p.endDate,
-    budget:            p.budget,
-    description:       p.description,
-    client_commitment: p.clientCommitment,
-    color:             p.color,
-    milestones:        p.milestones,
-    payments:          p.payments,
-  };
+  const out = {};
+  if (p.name              !== undefined) out.name              = p.name;
+  if (p.clientId          !== undefined) out.client_id         = p.clientId ? parseInt(p.clientId) : null;
+  if (p.bdOwner           !== undefined) out.bd_owner_id       = p.bdOwner  ? parseInt(p.bdOwner)  : null;
+  if (p.pmOwner           !== undefined) out.pm_owner_id       = p.pmOwner  ? parseInt(p.pmOwner)  : null;
+  if (p.category          !== undefined) out.category          = p.category;
+  if (p.status            !== undefined) out.status            = p.status;
+  if (p.completion        !== undefined) out.completion        = p.completion;
+  if (p.startDate         !== undefined) out.start_date        = p.startDate   || null;
+  if (p.endDate           !== undefined) out.end_date          = p.endDate     || null;
+  if (p.budget            !== undefined) out.budget            = parseFloat(p.budget) || 0;
+  if (p.description       !== undefined) out.description       = p.description       || null;
+  if (p.clientCommitment  !== undefined) out.client_commitment = p.clientCommitment  || null;
+  if (p.color             !== undefined) out.color             = p.color;
+  if (p.milestones        !== undefined) out.milestones        = p.milestones;
+  if (p.payments          !== undefined) out.payments          = p.payments;
+  return out;
 }
 
 export default projectService;

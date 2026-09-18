@@ -1,376 +1,790 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, StatusBadge, ProgressBar, Badge, formatCurrency, formatDate, Btn, Modal, Field, inputStyle, ConfirmModal, SectionTitle, EmptyState, Table, TR, TD, ActionMenu } from '../components/UI';
-import { ArrowLeft, FileText, Link, File, Lock, Users, Calendar, DollarSign, Target, Plus, Trash2 } from 'lucide-react';
-import { resources, getUserById } from '../data/mockData';
+import {
+  Card, StatusBadge, ProgressBar, Badge, Btn, Modal, Field,
+  inputStyle, ConfirmModal, ActionMenu, formatDate, EmptyState, SectionTitle,
+} from '../components/UI';
+import {
+  ArrowLeft, Edit2, CheckCircle2, AlertCircle, Trophy,
+  CreditCard, Milestone, Calendar, Target, RotateCcw,
+  Plus, Trash2, CheckCheck,
+} from 'lucide-react';
+import projectService from '../services/projectService';
 
-const TABS = ['Overview', 'Milestones', 'Documents', 'Payments', 'Blockers & Wins'];
+/* ── Constants ────────────────────────────────────────────── */
+const TABS = [
+  { key:'overview',      label:'Overview',     icon:Edit2 },
+  { key:'milestones',    label:'Milestones',   icon:Milestone },
+  { key:'payments',      label:'Payments',     icon:CreditCard },
+  { key:'blockers',      label:'Blockers',     icon:AlertCircle },
+  { key:'achievements',  label:'Wins',         icon:Trophy },
+];
 
-export default function ProjectDetail() { const { id } = useParams();
-  const navigate = useNavigate();
-  const { projects, clients, isManagement, isPM, isBD, toggleMilestoneCycleTarget, addMilestone, updateMilestone, deleteMilestone, addPayment, updatePayment, deletePayment, addBlocker, resolveBlocker, deleteBlocker, addAchievement, deleteAchievement, user } = useApp();
-  const project = projects.find(p => p.id === id);
-  const [tab, setTab]   = useState('Overview');
-  const [confirmDel, setConfirmDel] = useState(null); // { type, id }
+const MILESTONE_STATUSES = ['upcoming','in-progress','completed','on-hold','overdue'];
+const PAYMENT_TYPES      = ['Advance','Milestone','Final'];
+const PAYMENT_STATUSES   = ['upcoming','pending','received'];
+const BLOCKER_TYPES      = ['communication','technical','resource','client-delay','scope-change','other'];
+const COLORS             = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B1C1C','#A85010'];
 
-  // Milestone form
-  const [mModal, setMModal] = useState(false);
-  const [mForm, setMForm] = useState({ name: '', dueDate: '' });
-  const [mEditing, setMEditing] = useState(null);
+const STATUS_COLOR = {
+  completed:     'var(--success)',
+  'in-progress': '#4A90D9',
+  overdue:       'var(--danger)',
+  'on-hold':     'var(--warning)',
+  upcoming:      'var(--text-muted)',
+};
 
-  // Payment form
-  const [pModal, setPModal] = useState(false);
-  const [pForm, setPForm] = useState({ amount: '', type: 'Milestone', date: '', notes: '', status: 'upcoming' });
-  const [pEditing, setPEditing] = useState(null);
+const PAY_STATUS_COLOR = {
+  received: 'var(--success)',
+  pending:  'var(--warning)',
+  upcoming: 'var(--text-muted)',
+};
 
-  // Blocker / Achievement forms
-  const [bForm, setBForm] = useState({ type: 'communication', description: '' });
-  const [showBForm, setShowBForm] = useState(false);
-  const [aForm, setAForm] = useState({ description: '' });
-  const [showAForm, setShowAForm] = useState(false);
+export default function ProjectDetail() {
+  const { id }       = useParams();
+  const navigate     = useNavigate();
+  const {
+    projects, setProjects, clients, fmt, isManagement, isBD,
+  } = useApp();
 
-  if (!project) return <div style={{ padding: 32 }}>Not found. <button onClick={() => navigate('/projects')} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>Back</button></div>;
+  const [project, setProject] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+  const [tab, setTab]         = useState('overview');
 
-  const client      = clients.find(c => c.id === project.clientId);
-  const projectRsrc = project.resources.map(rid => resources.find(r => r.id === rid)).filter(Boolean);
-  const pm  = getUserById(project.pmOwner);
-  const bd  = getUserById(project.bdOwner);
-  const totalPaid = project.payments.filter(p => p.status === 'received').reduce((s, p) => s + p.amount, 0);
+  /* ── Edit project state ─────────────────────────────── */
+  const [showEdit, setShowEdit]     = useState(false);
+  const [editForm, setEditForm]     = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [editErrors, setEditErrors] = useState({});
 
-  // Milestone save
-  const saveMilestone = () => { if (!mForm.name.trim()) return;
-    mEditing ? updateMilestone(id, mEditing, mForm) : addMilestone(id, mForm);
-    setMModal(false); setMEditing(null); setMForm({ name: '', dueDate: '' });
+  /* ── Milestone state ────────────────────────────────── */
+  const [showMilestone, setShowMilestone]   = useState(false);
+  const [milestoneForm, setMilestoneForm]   = useState({ name:'', dueDate:'', status:'upcoming' });
+  const [milestoneEditing, setMilestoneEditing] = useState(null);
+  const [milestoneSaving, setMilestoneSaving]   = useState(false);
+  const [milestoneErrors, setMilestoneErrors]   = useState({});
+  const [confirmDelMilestone, setConfirmDelMilestone] = useState(null);
+
+  /* ── Payment state ──────────────────────────────────── */
+  const [showPayment, setShowPayment]   = useState(false);
+  const [paymentForm, setPaymentForm]   = useState({ amount:'', type:'Milestone', date:'', status:'upcoming', notes:'' });
+  const [paymentEditing, setPaymentEditing] = useState(null);
+  const [paymentSaving, setPaymentSaving]   = useState(false);
+  const [paymentErrors, setPaymentErrors]   = useState({});
+  const [confirmDelPayment, setConfirmDelPayment] = useState(null);
+
+  /* ── Blocker state ──────────────────────────────────── */
+  const [showBlocker, setShowBlocker]     = useState(false);
+  const [blockerForm, setBlockerForm]     = useState({ type:'technical', description:'' });
+  const [blockerSaving, setBlockerSaving] = useState(false);
+  const [blockerErrors, setBlockerErrors] = useState({});
+  const [confirmDelBlocker, setConfirmDelBlocker] = useState(null);
+
+  /* ── Achievement state ──────────────────────────────── */
+  const [showAchievement, setShowAchievement]   = useState(false);
+  const [achievementText, setAchievementText]   = useState('');
+  const [achievementSaving, setAchievementSaving] = useState(false);
+  const [confirmDelAchievement, setConfirmDelAchievement] = useState(null);
+
+  /* ── Completion state ───────────────────────────────── */
+  const [completionVal, setCompletionVal] = useState(0);
+  const [savingCompletion, setSavingCompletion] = useState(false);
+
+  const numId = parseInt(id) || id;
+
+  /* ── Load project ───────────────────────────────────── */
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        let found = projects.find(p => p.id === numId || p.id === id);
+        if (!found || !found.milestones) {
+          found = await projectService.getById(id);
+        }
+        setProject(found);
+        setCompletionVal(found.completion || 0);
+      } catch {
+        setError('Project not found or failed to load.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
+
+  const client = project ? clients.find(c => c.id === project.clientId || c.id === parseInt(project.clientId)) : null;
+
+  /* ── Helpers ────────────────────────────────────────── */
+  const updateLocal = (changes) => setProject(prev => ({ ...prev, ...changes }));
+
+  /* ── Edit project ───────────────────────────────────── */
+  const openEditProject = () => {
+    setEditForm({
+      name:             project.name             || '',
+      clientId:         project.clientId         || '',
+      category:         project.category         || 'Website',
+      status:           project.status           || 'active',
+      budget:           project.budget           || '',
+      startDate:        project.startDate        || '',
+      endDate:          project.endDate          || '',
+      description:      project.description      || '',
+      clientCommitment: project.clientCommitment || '',
+      color:            project.color            || '#2E6DB4',
+    });
+    setEditErrors({});
+    setShowEdit(true);
   };
-  const openEditM = (m) => { setMForm({ name: m.name, dueDate: m.dueDate }); setMEditing(m.id); setMModal(true); };
 
-  // Payment save
-  const savePayment = () => { if (!pForm.amount || !pForm.date) return;
-    pEditing ? updatePayment(id, pEditing, pForm) : addPayment(id, pForm);
-    setPModal(false); setPEditing(null); setPForm({ amount: '', type: 'Milestone', date: '', notes: '', status: 'upcoming' });
+  const handleSaveProject = async () => {
+    if (!editForm.name?.trim()) { setEditErrors({ name:'Required' }); return; }
+    setEditSaving(true);
+    try {
+      const updated = await projectService.update(project.id, editForm);
+      setProject(prev => ({ ...prev, ...updated }));
+      setProjects(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+      setShowEdit(false);
+    } catch (err) {
+      setEditErrors({ api: err.response?.data?.message || 'Failed to save.' });
+    } finally {
+      setEditSaving(false);
+    }
   };
-  const openEditP = (p) => { setPForm({ amount: p.amount, type: p.type, date: p.date, notes: p.notes, status: p.status }); setPEditing(p.id); setPModal(true); };
 
-  const handleConfirm = () => { if (!confirmDel) return;
-    if (confirmDel.type === 'milestone') deleteMilestone(id, confirmDel.id);
-    if (confirmDel.type === 'payment')   deletePayment(id, confirmDel.id);
-    if (confirmDel.type === 'blocker')   deleteBlocker(id, confirmDel.id);
-    if (confirmDel.type === 'achievement') deleteAchievement(id, confirmDel.id);
-    setConfirmDel(null);
+  /* ── Completion ─────────────────────────────────────── */
+  const handleSaveCompletion = async () => {
+    setSavingCompletion(true);
+    try {
+      await projectService.updateCompletion(project.id, completionVal);
+      updateLocal({ completion: completionVal });
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, completion: completionVal } : p));
+    } catch {
+      alert('Failed to update completion.');
+    } finally {
+      setSavingCompletion(false);
+    }
   };
 
-  const catColor = { Website: 'var(--accent)', 'Mobile App': 'var(--violet)', 'AI/ML': 'var(--orange)' };
+  /* ── Milestones ─────────────────────────────────────── */
+  const openAddMilestone = () => { setMilestoneForm({ name:'', dueDate:'', status:'upcoming' }); setMilestoneEditing(null); setMilestoneErrors({}); setShowMilestone(true); };
+  const openEditMilestone = (m) => {
+    setMilestoneForm({ name: m.name, dueDate: m.dueDate||'', status: m.status||'upcoming', completedDate: m.completedDate||'' });
+    setMilestoneEditing(m.id);
+    setMilestoneErrors({});
+    setShowMilestone(true);
+  };
+
+  const handleSaveMilestone = async () => {
+    if (!milestoneForm.name?.trim()) { setMilestoneErrors({ name:'Required' }); return; }
+    setMilestoneSaving(true);
+    try {
+      if (milestoneEditing) {
+        await projectService.updateMilestone(project.id, milestoneEditing, milestoneForm);
+        updateLocal({ milestones: project.milestones.map(m => m.id === milestoneEditing ? { ...m, ...milestoneForm, dueDate: milestoneForm.dueDate } : m) });
+      } else {
+        const created = await projectService.addMilestone(project.id, milestoneForm);
+        updateLocal({ milestones: [...(project.milestones||[]), created] });
+      }
+      setShowMilestone(false);
+    } catch (err) {
+      setMilestoneErrors({ api: err.response?.data?.message || 'Failed to save.' });
+    } finally {
+      setMilestoneSaving(false);
+    }
+  };
+
+  const handleDeleteMilestone = async () => {
+    try {
+      await projectService.deleteMilestone(project.id, confirmDelMilestone);
+      updateLocal({ milestones: project.milestones.filter(m => m.id !== confirmDelMilestone) });
+    } catch { alert('Failed to delete milestone.'); }
+    setConfirmDelMilestone(null);
+  };
+
+  const handleToggleCycle = async (milestoneId) => {
+    try {
+      const toggled = await projectService.toggleCycleTarget(project.id, milestoneId);
+      updateLocal({ milestones: project.milestones.map(m => m.id === milestoneId ? { ...m, cycleTargeted: toggled } : m) });
+    } catch { alert('Failed to toggle cycle target.'); }
+  };
+
+  /* ── Payments ───────────────────────────────────────── */
+  const openAddPayment = () => { setPaymentForm({ amount:'', type:'Milestone', date:'', status:'upcoming', notes:'' }); setPaymentEditing(null); setPaymentErrors({}); setShowPayment(true); };
+  const openEditPayment = (pay) => {
+    setPaymentForm({ amount: pay.amount, type: pay.type, date: pay.date||'', status: pay.status, notes: pay.notes||'' });
+    setPaymentEditing(pay.id);
+    setPaymentErrors({});
+    setShowPayment(true);
+  };
+
+  const handleSavePayment = async () => {
+    if (!paymentForm.amount) { setPaymentErrors({ amount:'Required' }); return; }
+    if (!paymentForm.date)   { setPaymentErrors({ date:'Required' }); return; }
+    setPaymentSaving(true);
+    try {
+      if (paymentEditing) {
+        await projectService.updatePayment(project.id, paymentEditing, paymentForm);
+        updateLocal({ payments: project.payments.map(p => p.id === paymentEditing ? { ...p, ...paymentForm, amount: parseFloat(paymentForm.amount) } : p) });
+      } else {
+        const created = await projectService.addPayment(project.id, paymentForm);
+        updateLocal({ payments: [...(project.payments||[]), created] });
+      }
+      setShowPayment(false);
+    } catch (err) {
+      setPaymentErrors({ api: err.response?.data?.message || 'Failed to save.' });
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    try {
+      await projectService.deletePayment(project.id, confirmDelPayment);
+      updateLocal({ payments: project.payments.filter(p => p.id !== confirmDelPayment) });
+    } catch { alert('Failed to delete payment.'); }
+    setConfirmDelPayment(null);
+  };
+
+  /* ── Blockers ───────────────────────────────────────── */
+  const handleAddBlocker = async () => {
+    if (!blockerForm.description?.trim()) { setBlockerErrors({ description:'Required' }); return; }
+    setBlockerSaving(true);
+    try {
+      const created = await projectService.addBlocker(project.id, blockerForm);
+      updateLocal({ blockers: [created, ...(project.blockers||[])] });
+      setBlockerForm({ type:'technical', description:'' });
+      setShowBlocker(false);
+    } catch (err) {
+      setBlockerErrors({ api: err.response?.data?.message || 'Failed to add.' });
+    } finally {
+      setBlockerSaving(false);
+    }
+  };
+
+  const handleResolveBlocker = async (blockerId) => {
+    try {
+      await projectService.resolveBlocker(project.id, blockerId);
+      updateLocal({ blockers: project.blockers.map(b => b.id === blockerId ? { ...b, resolved:true } : b) });
+    } catch { alert('Failed to resolve blocker.'); }
+  };
+
+  const handleDeleteBlocker = async () => {
+    try {
+      await projectService.deleteBlocker(project.id, confirmDelBlocker);
+      updateLocal({ blockers: project.blockers.filter(b => b.id !== confirmDelBlocker) });
+    } catch { alert('Failed to delete blocker.'); }
+    setConfirmDelBlocker(null);
+  };
+
+  /* ── Achievements ───────────────────────────────────── */
+  const handleAddAchievement = async () => {
+    if (!achievementText.trim()) return;
+    setAchievementSaving(true);
+    try {
+      const created = await projectService.addAchievement(project.id, { description: achievementText });
+      updateLocal({ achievements: [created, ...(project.achievements||[])] });
+      setAchievementText('');
+      setShowAchievement(false);
+    } catch { alert('Failed to add achievement.'); }
+    finally { setAchievementSaving(false); }
+  };
+
+  const handleDeleteAchievement = async () => {
+    try {
+      await projectService.deleteAchievement(project.id, confirmDelAchievement);
+      updateLocal({ achievements: project.achievements.filter(a => a.id !== confirmDelAchievement) });
+    } catch { alert('Failed to delete achievement.'); }
+    setConfirmDelAchievement(null);
+  };
+
+  /* ── Render states ──────────────────────────────────── */
+  if (loading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:300, color:'var(--text-muted)', fontSize:14 }}>
+      Loading project…
+    </div>
+  );
+
+  if (error || !project) return (
+    <div style={{ textAlign:'center', padding:40 }}>
+      <div style={{ fontSize:32, marginBottom:12 }}>⚠️</div>
+      <div style={{ fontSize:15, color:'var(--text-muted)', marginBottom:20 }}>{error || 'Project not found.'}</div>
+      <Btn onClick={() => navigate('/projects')}>← Back to Projects</Btn>
+    </div>
+  );
+
+  const milestones    = project.milestones   || [];
+  const payments      = project.payments     || [];
+  const blockers      = project.blockers     || [];
+  const achievements  = project.achievements || [];
+  const openBlockers  = blockers.filter(b => !b.resolved);
+  const totalBudget   = project.budget || 0;
+  const received      = payments.filter(p => p.status === 'received').reduce((s,p) => s + p.amount, 0);
+  const pending       = payments.filter(p => p.status !== 'received').reduce((s,p) => s + p.amount, 0);
+  const completedMilestones = milestones.filter(m => m.status === 'completed').length;
+  const canEdit = isManagement || isBD;
+
+  /* ── Tab badge helper ───────────────────────────────── */
+  const tabBadge = (key) => {
+    if (key === 'blockers' && openBlockers.length > 0) return openBlockers.length;
+    return null;
+  };
 
   return (
     <div className="fade-in">
-      <button onClick={() => navigate('/projects')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer', fontWeight: 700, marginBottom: 14 }}>
-        <ArrowLeft size={13} /> Back to Projects
-      </button>
 
-      {/* Header card */}
-      <Card style={{ marginBottom: 16, padding: '20px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ width: 4, height: 54, borderRadius: 4, background: project.color, flexShrink: 0, marginTop: 2 }} />
-            <div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
-                <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 28, fontWeight: 700 }}>{project.name}</h1>
-                <StatusBadge status={project.status} />
-                <Badge label={project.category} color={catColor[project.category]} />
-              </div>
-              {client
-                ? <div style={{ fontSize: 14, marginBottom: 6 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Client: </span>
-                    <span onClick={() => navigate(`/clients/${client.id}`)} style={{ color: 'var(--accent)', fontWeight: 700, cursor: 'pointer' }}>{project.client}</span>
-                  </div>
-                : <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>{project.client}</div>
-              }
-              <div style={{ fontSize: 14, color: 'var(--text-dim)', maxWidth: 560, lineHeight: 1.7 }}>{project.description}</div>
-              {project.clientCommitment && (
-                <div style={{ marginTop: 10, padding: '7px 12px', borderRadius: 8, background: 'var(--warning-dim)', border: '1px solid #92520A25', maxWidth: 560 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--warning)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 3 }}>Client Commitment</div>
-                  <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.6 }}>{project.clientCommitment}</div>
-                </div>
+      {/* ── Back + Header ─────────────────────────────── */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <button onClick={() => navigate('/projects')} style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:7, border:'1px solid var(--border)', background:'var(--bg-elevated)', color:'var(--text-muted)', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            <ArrowLeft size={13}/> Projects
+          </button>
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:14, height:14, borderRadius:3, background:project.color||'#2E6DB4' }}/>
+              <h1 style={{ fontFamily:'var(--font-display)', fontSize:22, fontWeight:700, color:'#1B2E6B', letterSpacing:'-0.5px', lineHeight:1.2 }}>{project.name}</h1>
+              <StatusBadge status={project.status}/>
+            </div>
+            <div style={{ display:'flex', gap:8, marginTop:5, alignItems:'center' }}>
+              {client && (
+                <span onClick={() => navigate(`/clients/${client.id}`)} style={{ fontSize:13, color:'#2E6DB4', fontWeight:600, cursor:'pointer' }}>
+                  {client.name}
+                </span>
               )}
-            </div>
-          </div>
-          <div style={{ minWidth: 160 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontStyle: 'italic', fontWeight: 700, color: project.color, textAlign: 'right' }}>{project.completion}%</div>
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', textAlign: 'right', marginBottom: 6, fontWeight: 700 }}>Completion</div>
-            <ProgressBar value={project.completion} color={project.color} height={6} bg="var(--bg-elevated)" />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>
-              <span>{formatDate(project.startDate)}</span><span>{formatDate(project.endDate)}</span>
+              <Badge label={project.category} color="#4C3A9E"/>
+              {project.endDate && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Due {formatDate(project.endDate)}</span>}
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 18, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', flexWrap: 'wrap', fontSize: 14 }}>
-          {[
-            { label: 'Budget', val: formatCurrency(project.budget), color: 'var(--text)' }, ...(isManagement ? [{ label: 'Received', val: formatCurrency(totalPaid), color: 'var(--success)' }] : []), { label: 'PM', val: pm?.name || '—', color: 'var(--text)' }, { label: 'BD', val: bd?.name || '—', color: 'var(--text)' }, { label: 'Milestones', val: `${project.milestones.filter(m => m.status==='completed').length}/${project.milestones.length}`, color: 'var(--text)' }, ].map(s => (
-            <div key={s.label} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-muted)' }}>{s.label}:</span>
-              <span style={{ fontWeight: 700, color: s.color }}>{s.val}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 2, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, width: 'fit-content', marginBottom: 16, boxShadow: 'var(--shadow-sm)' }}>
-        {TABS.map(t => <button key={t} onClick={() => setTab(t)} style={{ padding: '6px 13px', borderRadius: 7, border: 'none', background: tab===t?'var(--accent)':'transparent', color: tab===t?'#fff':'var(--text-muted)', fontSize: 14, fontWeight: tab===t?700:400, cursor: 'pointer', transition: 'all 0.13s' }}>{t}</button>)}
+        {canEdit && <Btn icon={<Edit2 size={13}/>} onClick={openEditProject}>Edit Project</Btn>}
       </div>
 
-      {/* ── OVERVIEW ── */}
-      {tab === 'Overview' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <Card>
-            <SectionTitle sub="Status breakdown">Milestone Summary</SectionTitle>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {[['completed','Completed','var(--success)'],['in-progress','In Progress','var(--violet)'],['overdue','Overdue','var(--danger)'],['upcoming','Upcoming','var(--text-muted)']].map(([s,l,c]) => (
-                <div key={s} style={{ padding: 12, borderRadius: 8, background: `${c}08`, border: `1px solid ${c}20`, textAlign: 'center' }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontStyle: 'italic', fontWeight: 700, color: c }}>{project.milestones.filter(m=>m.status===s).length}</div>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 700, marginTop: 2 }}>{l}</div>
-                </div>
-              ))}
-            </div>
+      {/* ── KPI strip ─────────────────────────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
+        {[
+          { label:'Completion',   value:`${project.completion||0}%`,                    color:project.color||'#2E6DB4' },
+          { label:'Budget',       value:fmt(totalBudget),                                color:'#1B2E6B' },
+          { label:'Received',     value:fmt(received),                                   color:'var(--success)' },
+          { label:'Milestones',   value:`${completedMilestones}/${milestones.length}`,   color:'#4C3A9E' },
+          { label:'Open Blockers',value:openBlockers.length,                             color:openBlockers.length>0?'var(--danger)':'var(--text-muted)' },
+        ].map(k => (
+          <Card key={k.label} style={{ padding:'12px 14px', borderTop:`3px solid ${k.color}` }}>
+            <div style={{ fontSize:20, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>{k.label}</div>
           </Card>
-          <Card>
-            <SectionTitle sub="Assigned developers">Team</SectionTitle>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {projectRsrc.map(r => { const col = r.utilization>85?'var(--danger)':r.utilization>70?'var(--warning)':'var(--success)';
-                return (
-                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg-elevated)', border: '1.5px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: 'var(--accent)' }}>{r.avatar}</div>
-                    <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{r.name}</div><div style={{ fontSize: 14, color: 'var(--text-muted)' }}>{r.tech}</div></div>
-                    <Badge label={`${r.utilization}%`} color={col} />
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+        ))}
+      </div>
+
+      {/* ── Completion slider ──────────────────────────── */}
+      <Card style={{ padding:'14px 18px', marginBottom:16, display:'flex', alignItems:'center', gap:16 }}>
+        <div style={{ width:3, height:32, borderRadius:3, background:project.color||'#2E6DB4', flexShrink:0 }}/>
+        <div style={{ flex:1 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+            <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Overall Completion</span>
+            <span style={{ fontSize:16, fontWeight:800, color:project.color||'#2E6DB4' }}>{completionVal}%</span>
+          </div>
+          <input type="range" min={0} max={100} value={completionVal}
+            onChange={e => setCompletionVal(parseInt(e.target.value))}
+            style={{ width:'100%', accentColor:project.color||'#2E6DB4', cursor:'pointer' }}
+          />
         </div>
-      )}
+        <Btn
+          variant={completionVal === (project.completion||0) ? 'ghost' : 'primary'}
+          onClick={handleSaveCompletion}
+          disabled={savingCompletion || completionVal === (project.completion||0)}
+        >
+          {savingCompletion ? 'Saving…' : 'Update'}
+        </Btn>
+      </Card>
 
-      {/* ── MILESTONES ── */}
-      {tab === 'Milestones' && (
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '13px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SectionTitle sub="Project milestones">Timeline</SectionTitle>
-            {isPM && <Btn size="sm" icon={<Plus size={12} />} onClick={() => { setMForm({ name:'', dueDate:'' }); setMEditing(null); setMModal(true); }}>Add Milestone</Btn>}
-          </div>
-          <Table headers={['Milestone', 'Due Date', 'Completed', 'Status', 'Cycle Target', 'Actions']}>
-            {project.milestones.map(m => { const pay = m.linkedPaymentId ? project.payments.find(p => p.id === m.linkedPaymentId) : null;
-              return (
-                <TR key={m.id}>
-                  <TD>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 3, height: 18, borderRadius: 3, background: project.color }} />
-                      <div>
-                        <div style={{ fontWeight: 700 }}>{m.name}</div>
-                        {pay && <div style={{ fontSize: 14, color: 'var(--warning)' }}>Linked: {formatCurrency(pay.amount)} · {pay.status}</div>}
-                      </div>
-                    </div>
-                  </TD>
-                  <TD><span style={{ fontSize: 14, color: m.status==='overdue'?'var(--danger)':'var(--text-muted)' }}>{formatDate(m.dueDate)}</span></TD>
-                  <TD><span style={{ fontSize: 14, color: 'var(--success)' }}>{m.completedDate ? formatDate(m.completedDate) : '—'}</span></TD>
-                  <TD><StatusBadge status={m.status} /></TD>
-                  <TD>
-                    {m.status !== 'completed' && isPM
-                      ? <button onClick={() => toggleMilestoneCycleTarget(id, m.id)} style={{ padding: '3px 9px', borderRadius: 6, border: `1px solid ${m.cycleTargeted?'var(--accent)':'var(--border)'}`, background: m.cycleTargeted?'var(--accent-dim)':'transparent', color: m.cycleTargeted?'var(--accent)':'var(--text-muted)', fontSize: 14, cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}><Target size={9} />{m.cycleTargeted ? 'Targeted' : 'Set'}</button>
-                      : m.cycleTargeted ? <Badge label="Targeted" color="var(--accent)" /> : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>—</span>
-                    }
-                  </TD>
-                  <TD>
-                    {isPM && (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => openEditM(m)} style={{ padding: '3px 8px', fontSize: 14, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--accent)', cursor: 'pointer', fontWeight: 700 }}>Edit</button>
-                        <button onClick={() => setConfirmDel({ type: 'milestone', id: m.id })} style={{ padding: '3px 8px', fontSize: 14, borderRadius: 5, border: '1px solid #A01C1C25', background: '#A01C1C08', color: 'var(--danger)', cursor: 'pointer', fontWeight: 700 }}>Del</button>
-                      </div>
-                    )}
-                  </TD>
-                </TR>
-              );
-            })}
-          </Table>
-        </Card>
-      )}
+      {/* ── Tabs ──────────────────────────────────────── */}
+      <div style={{ display:'flex', gap:2, background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:4, marginBottom:20, width:'fit-content' }}>
+        {TABS.map(({ key, label, icon:Icon }) => {
+          const badge = tabBadge(key);
+          return (
+            <button key={key} onClick={() => setTab(key)} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:7, border:'none', cursor:'pointer', background:tab===key?'#1B2E6B':'transparent', color:tab===key?'#fff':'var(--text-muted)', fontSize:13, fontWeight:tab===key?700:400, transition:'all 0.13s', fontFamily:'var(--font-body)', position:'relative' }}>
+              <Icon size={13}/>{label}
+              {badge > 0 && <span style={{ marginLeft:2, background:'var(--danger)', color:'#fff', borderRadius:10, fontSize:10, fontWeight:700, padding:'1px 5px' }}>{badge}</span>}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* ── DOCUMENTS ── */}
-      {tab === 'Documents' && (
-        <Card>
-          <SectionTitle sub="Project files and references">Documents</SectionTitle>
-          {!project.documents.length && <EmptyState message="No documents uploaded yet." />}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {project.documents.map(d => { const iconMap = { pdf: { icon: <FileText size={14} />, color: 'var(--danger)' }, link: { icon: <Link size={14} />, color: 'var(--accent)' }, docx: { icon: <File size={14} />, color: 'var(--violet)' }, xlsx: { icon: <File size={14} />, color: 'var(--success)' }, contract: { icon: <FileText size={14} />, color: 'var(--warning)' } };
-              const { icon, color } = iconMap[d.type] || { icon: <File size={14} />, color: 'var(--text-muted)' };
-              const uploader = getUserById(d.uploadedBy);
-              return (
-                <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                  <div style={{ color }}>{icon}</div>
-                  <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{d.name}</div><div style={{ fontSize: 14, color: 'var(--text-muted)' }}>By {uploader?.name} · {formatDate(d.uploadedAt)}{d.size ? ` · ${d.size}` : ''}</div></div>
-                  <Badge label={d.type.toUpperCase()} color={color} />
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
+      {/* ══ OVERVIEW TAB ════════════════════════════════ */}
+      {tab === 'overview' && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
 
-      {/* ── PAYMENTS ── */}
-      {tab === 'Payments' && (
-        isManagement ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          <Card>
+            <SectionTitle>Project Details</SectionTitle>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
               {[
-                { label: 'Total Budget', val: formatCurrency(project.budget), color: 'var(--text)' }, { label: 'Received', val: formatCurrency(totalPaid), color: 'var(--success)' }, { label: 'Pending / Due', val: formatCurrency(project.payments.filter(p=>p.status!=='received').reduce((s,p)=>s+p.amount,0)), color: 'var(--warning)' }, ].map(s => (
-                <Card key={s.label} style={{ textAlign: 'center', padding: 16 }}>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 6 }}>{s.label}</div>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.val}</div>
-                </Card>
+                { label:'Client',      value: client?.name, link: client ? () => navigate(`/clients/${client.id}`) : null },
+                { label:'Category',    value: project.category },
+                { label:'Budget',      value: fmt(totalBudget) },
+                { label:'Start Date',  value: formatDate(project.startDate) },
+                { label:'End Date',    value: formatDate(project.endDate) },
+                { label:'BD Owner',    value: project.bdOwnerName },
+                { label:'PM Owner',    value: project.pmOwnerName },
+              ].filter(r => r.value && r.value !== '—').map(row => (
+                <div key={row.label} style={{ display:'flex', justifyContent:'space-between', fontSize:14, paddingBottom:8, borderBottom:'1px solid var(--border)' }}>
+                  <span style={{ color:'var(--text-muted)', fontWeight:600 }}>{row.label}</span>
+                  <span onClick={row.link || undefined} style={{ color:row.link?'#2E6DB4':'var(--text)', fontWeight:row.link?700:400, cursor:row.link?'pointer':'default' }}>{row.value}</span>
+                </div>
               ))}
             </div>
-            <Card style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '13px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <SectionTitle sub="Full payment history">Payment Ledger</SectionTitle>
-                <Btn size="sm" icon={<Plus size={12} />} onClick={() => { setPForm({ amount:'', type:'Milestone', date:'', notes:'', status:'upcoming' }); setPEditing(null); setPModal(true); }}>Add Payment</Btn>
-              </div>
-              <Table headers={['Type', 'Notes', 'Date', 'Amount', 'Status', 'Actions']}>
-                {project.payments.map(pay => (
-                  <TR key={pay.id}>
-                    <TD><span style={{ fontWeight: 700 }}>{pay.type}</span></TD>
-                    <TD><span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{pay.notes}</span></TD>
-                    <TD><span style={{ fontSize: 14 }}>{formatDate(pay.date)}</span></TD>
-                    <TD><span style={{ fontWeight: 800 }}>{formatCurrency(pay.amount)}</span></TD>
-                    <TD><StatusBadge status={pay.status} /></TD>
-                    <TD><ActionMenu onEdit={() => openEditP(pay)} onDelete={() => setConfirmDel({ type:'payment', id: pay.id })} /></TD>
-                  </TR>
-                ))}
-              </Table>
-            </Card>
-          </div>
-        ) : (
-          <Card style={{ padding: 40, textAlign: 'center' }}>
-            <Lock size={28} style={{ opacity: 0.3, display: 'block', margin: '0 auto 10px' }} />
-            <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Payment details visible to management only.</div>
           </Card>
-        )
+
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            {project.description && (
+              <Card>
+                <SectionTitle>Description</SectionTitle>
+                <p style={{ fontSize:14, color:'var(--text-dim)', lineHeight:1.8 }}>{project.description}</p>
+              </Card>
+            )}
+            {project.clientCommitment && (
+              <Card style={{ background:'#FBF5EC', border:'1px solid #8B5E0A20' }}>
+                <SectionTitle>Client Commitment</SectionTitle>
+                <p style={{ fontSize:14, color:'#8B5E0A', lineHeight:1.8 }}>{project.clientCommitment}</p>
+              </Card>
+            )}
+            {!project.description && !project.clientCommitment && (
+              <EmptyState icon="📋" message="No description or commitment added."/>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* ── BLOCKERS & WINS ── */}
-      {tab === 'Blockers & Wins' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          {/* Blockers */}
-          <Card>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <SectionTitle>⚠ Blockers</SectionTitle>
-              {(isPM || isBD) && <Btn size="sm" variant="ghost" icon={<Plus size={12} />} onClick={() => setShowBForm(!showBForm)}>Add</Btn>}
+      {/* ══ MILESTONES TAB ══════════════════════════════ */}
+      {tab === 'milestones' && (
+        <div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <div style={{ fontSize:13, color:'var(--text-muted)' }}>
+              {completedMilestones} of {milestones.length} completed
             </div>
-            {showBForm && (
-              <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', marginBottom: 12 }}>
-                <select value={bForm.type} onChange={e => setBForm(f => ({...f, type: e.target.value}))} style={{ ...inputStyle(), marginBottom: 8 }}>
-                  {['communication','dispute','compliance','technical','other'].map(t => <option key={t}>{t}</option>)}
-                </select>
-                <textarea value={bForm.description} onChange={e => setBForm(f => ({...f, description: e.target.value}))} rows={2} placeholder="Describe the blocker…" style={{ ...inputStyle(), resize: 'vertical', marginBottom: 8 }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Btn size="sm" variant="danger" onClick={() => { if (bForm.description.trim()) { addBlocker(id, { ...bForm, addedBy: user.id }); setBForm({ type:'communication', description:'' }); setShowBForm(false); } }}>Add</Btn>
-                  <Btn size="sm" variant="ghost" onClick={() => setShowBForm(false)}>Cancel</Btn>
-                </div>
-              </div>
-            )}
-            {!project.blockers.length && <EmptyState icon="✅" message="No blockers — smooth sailing!" />}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {project.blockers.map(b => { const adder = getUserById(b.addedBy);
-                return (
-                  <div key={b.id} style={{ padding: '10px 12px', borderRadius: 8, background: b.resolved ? 'var(--success-dim)' : 'var(--danger-dim)', border: `1px solid ${b.resolved ? 'var(--success)' : 'var(--danger)'}20`, opacity: b.resolved ? 0.7 : 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: b.resolved ? 'var(--success)' : 'var(--danger)' }}>{b.type}{b.resolved ? ' · Resolved' : ''}</span>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {!b.resolved && isManagement && <button onClick={() => resolveBlocker(id, b.id)} style={{ fontSize: 14, padding: '1px 7px', borderRadius: 4, background: 'var(--success-dim)', border: '1px solid #1A6B3C30', color: 'var(--success)', cursor: 'pointer', fontWeight: 700 }}>Resolve</button>}
-                        <button onClick={() => setConfirmDel({ type: 'blocker', id: b.id })} style={{ fontSize: 14, padding: '1px 7px', borderRadius: 4, background: 'var(--danger-dim)', border: '1px solid #A01C1C25', color: 'var(--danger)', cursor: 'pointer', fontWeight: 700 }}>Del</button>
+            {canEdit && <Btn icon={<Plus size={13}/>} onClick={openAddMilestone}>Add Milestone</Btn>}
+          </div>
+
+          {milestones.length === 0
+            ? <EmptyState icon="🏁" message="No milestones defined yet."/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {milestones.map(m => (
+                  <Card key={m.id} style={{ display:'flex', alignItems:'center', gap:14, padding:'13px 16px' }}>
+                    {/* Status dot */}
+                    <div style={{ width:10, height:10, borderRadius:'50%', background:STATUS_COLOR[m.status]||'var(--text-muted)', flexShrink:0 }}/>
+
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:600, fontSize:14 }}>{m.name}</div>
+                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3, display:'flex', gap:10 }}>
+                        {m.dueDate && <span><Calendar size={10} style={{ marginRight:3 }}/>Due {formatDate(m.dueDate)}</span>}
+                        {m.completedDate && <span>✓ Completed {formatDate(m.completedDate)}</span>}
                       </div>
                     </div>
-                    <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.5 }}>{b.description}</div>
-                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 5 }}>Added by {adder?.name} · {formatDate(b.addedAt)}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
 
-          {/* Achievements */}
-          <Card>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <SectionTitle>🏆 Achievements</SectionTitle>
-              {(isPM || isManagement) && <Btn size="sm" variant="ghost" icon={<Plus size={12} />} onClick={() => setShowAForm(!showAForm)}>Add</Btn>}
-            </div>
-            {showAForm && (
-              <div style={{ padding: 12, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)', marginBottom: 12 }}>
-                <textarea value={aForm.description} onChange={e => setAForm({ description: e.target.value })} rows={2} placeholder="Describe the win…" style={{ ...inputStyle(), resize: 'vertical', marginBottom: 8 }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Btn size="sm" onClick={() => { if (aForm.description.trim()) { addAchievement(id, { ...aForm, addedBy: user.id }); setAForm({ description:'' }); setShowAForm(false); } }}>Add</Btn>
-                  <Btn size="sm" variant="ghost" onClick={() => setShowAForm(false)}>Cancel</Btn>
-                </div>
-              </div>
-            )}
-            {!project.achievements.length && <EmptyState icon="🎯" message="No achievements logged yet." />}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {project.achievements.map(a => { const adder = getUserById(a.addedBy);
-                return (
-                  <div key={a.id} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--warning-dim)', border: '1px solid #92520A20' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <span />
-                      <button onClick={() => setConfirmDel({ type: 'achievement', id: a.id })} style={{ fontSize: 14, padding: '1px 7px', borderRadius: 4, background: 'var(--danger-dim)', border: '1px solid #A01C1C25', color: 'var(--danger)', cursor: 'pointer', fontWeight: 700 }}>Del</button>
+                    <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                      <StatusBadge status={m.status}/>
+
+                      {/* Cycle target toggle */}
+                      <button onClick={() => handleToggleCycle(m.id)} title={m.cycleTargeted ? 'Remove from cycle' : 'Add to cycle'}
+                        style={{ padding:'4px 8px', borderRadius:5, border:`1.5px solid ${m.cycleTargeted?'#2E6DB4':'var(--border)'}`, background:m.cycleTargeted?'#EDF4FB':'var(--bg-elevated)', color:m.cycleTargeted?'#2E6DB4':'var(--text-muted)', fontSize:11, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
+                        <Target size={11}/>{m.cycleTargeted ? 'Targeted' : 'Target'}
+                      </button>
+
+                      {canEdit && <ActionMenu onEdit={() => openEditMilestone(m)} onDelete={() => setConfirmDelMilestone(m.id)}/>}
                     </div>
-                    <div style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.5 }}>{a.description}</div>
-                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 5 }}>Added by {adder?.name} · {formatDate(a.addedAt)}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
+                  </Card>
+                ))}
+              </div>
+            )
+          }
         </div>
+      )}
+
+      {/* ══ PAYMENTS TAB ════════════════════════════════ */}
+      {tab === 'payments' && (
+        <div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <div style={{ display:'flex', gap:14 }}>
+              <span style={{ fontSize:13 }}>💰 Received: <strong style={{ color:'var(--success)' }}>{fmt(received)}</strong></span>
+              <span style={{ fontSize:13 }}>⏳ Pending: <strong style={{ color:'var(--warning)' }}>{fmt(pending)}</strong></span>
+              <span style={{ fontSize:13 }}>📊 Total: <strong>{fmt(totalBudget)}</strong></span>
+            </div>
+            {isManagement && <Btn icon={<Plus size={13}/>} onClick={openAddPayment}>Add Payment</Btn>}
+          </div>
+
+          {payments.length === 0
+            ? <EmptyState icon="💳" message="No payments recorded yet."/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {payments.map(pay => (
+                  <Card key={pay.id} style={{ display:'flex', alignItems:'center', gap:14, padding:'13px 16px' }}>
+                    <div style={{ width:10, height:10, borderRadius:'50%', background:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)', flexShrink:0 }}/>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:600, fontSize:14 }}>{pay.type} Payment</div>
+                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>
+                        {formatDate(pay.date)}
+                        {pay.notes && ` · ${pay.notes}`}
+                      </div>
+                    </div>
+                    <span style={{ fontSize:20, fontWeight:800, color:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)' }}>{fmt(pay.amount)}</span>
+                    <StatusBadge status={pay.status}/>
+                    {isManagement && <ActionMenu onEdit={() => openEditPayment(pay)} onDelete={() => setConfirmDelPayment(pay.id)}/>}
+                  </Card>
+                ))}
+              </div>
+            )
+          }
+
+          {/* Budget progress */}
+          {payments.length > 0 && (
+            <Card style={{ marginTop:14, padding:'14px 18px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, fontSize:13 }}>
+                <span style={{ color:'var(--text-muted)' }}>Payment Progress</span>
+                <span style={{ fontWeight:700 }}>{fmt(received)} / {fmt(totalBudget)}</span>
+              </div>
+              <ProgressBar value={totalBudget > 0 ? Math.round((received/totalBudget)*100) : 0} color="var(--success)" height={8}/>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ══ BLOCKERS TAB ════════════════════════════════ */}
+      {tab === 'blockers' && (
+        <div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <div style={{ fontSize:13, color:'var(--text-muted)' }}>
+              {openBlockers.length} open · {blockers.filter(b=>b.resolved).length} resolved
+            </div>
+            {canEdit && <Btn icon={<Plus size={13}/>} onClick={() => { setBlockerForm({ type:'technical', description:'' }); setBlockerErrors({}); setShowBlocker(true); }}>Add Blocker</Btn>}
+          </div>
+
+          {blockers.length === 0
+            ? <EmptyState icon="✅" message="No blockers — project is running smoothly."/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {/* Open blockers first */}
+                {[...blockers].sort((a,b) => a.resolved - b.resolved).map(b => (
+                  <Card key={b.id} style={{ borderLeft:`4px solid ${b.resolved?'var(--success)':'var(--danger)'}`, padding:'13px 16px', opacity:b.resolved?0.7:1 }}>
+                    <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:6 }}>
+                          <Badge label={b.type} color={b.resolved?'var(--success)':'var(--danger)'}/>
+                          {b.resolved && <Badge label="Resolved" color="var(--success)"/>}
+                          <span style={{ fontSize:11, color:'var(--text-muted)' }}>{formatDate(b.addedAt)}</span>
+                        </div>
+                        <p style={{ fontSize:14, color:'var(--text)', lineHeight:1.7, margin:0 }}>{b.description}</p>
+                      </div>
+                      <div style={{ display:'flex', gap:6, flexShrink:0 }}>
+                        {!b.resolved && canEdit && (
+                          <button onClick={() => handleResolveBlocker(b.id)}
+                            style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:6, border:'1px solid var(--success)', background:'#EDF7F2', color:'var(--success)', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                            <CheckCheck size={12}/> Resolve
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button onClick={() => setConfirmDelBlocker(b.id)}
+                            style={{ padding:'5px 10px', borderRadius:6, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )
+          }
+        </div>
+      )}
+
+      {/* ══ ACHIEVEMENTS TAB ════════════════════════════ */}
+      {tab === 'achievements' && (
+        <div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <div style={{ fontSize:13, color:'var(--text-muted)' }}>{achievements.length} win{achievements.length !== 1 ? 's' : ''} logged</div>
+            {canEdit && <Btn icon={<Plus size={13}/>} onClick={() => { setAchievementText(''); setShowAchievement(true); }}>Log Win</Btn>}
+          </div>
+
+          {achievements.length === 0
+            ? <EmptyState icon="🏆" message="No wins logged yet. Celebrate the milestones!"/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {achievements.map(a => (
+                  <Card key={a.id} style={{ borderLeft:'4px solid #4C3A9E', padding:'13px 16px', display:'flex', alignItems:'flex-start', gap:12 }}>
+                    <div style={{ fontSize:20, flexShrink:0 }}>🏆</div>
+                    <div style={{ flex:1 }}>
+                      <p style={{ fontSize:14, color:'var(--text)', lineHeight:1.7, margin:0 }}>{a.description}</p>
+                      <span style={{ fontSize:11, color:'var(--text-muted)', marginTop:4, display:'block' }}>{formatDate(a.addedAt)}</span>
+                    </div>
+                    {canEdit && (
+                      <button onClick={() => setConfirmDelAchievement(a.id)}
+                        style={{ padding:'4px 8px', borderRadius:5, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontSize:12, cursor:'pointer' }}>
+                        <Trash2 size={12}/>
+                      </button>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            )
+          }
+        </div>
+      )}
+
+      {/* ══ MODALS ══════════════════════════════════════ */}
+
+      {/* Edit Project */}
+      {showEdit && (
+        <Modal title="Edit Project" onClose={() => setShowEdit(false)} width={600}
+          footer={<><Btn variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Btn><Btn onClick={handleSaveProject} disabled={editSaving}>{editSaving?'Saving…':'Save Changes'}</Btn></>}
+        >
+          <div style={{ display:'flex', flexDirection:'column', gap:13 }}>
+            {editErrors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:13 }}>{editErrors.api}</div>}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Project Name" required error={editErrors.name}>
+                <input value={editForm.name} onChange={e => setEditForm(f=>({...f,name:e.target.value}))} style={inputStyle(editErrors.name)} autoFocus/>
+              </Field>
+              <Field label="Client">
+                <select value={editForm.clientId||''} onChange={e => setEditForm(f=>({...f,clientId:e.target.value}))} style={inputStyle()}>
+                  <option value="">No client</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+              <Field label="Category">
+                <select value={editForm.category} onChange={e => setEditForm(f=>({...f,category:e.target.value}))} style={inputStyle()}>
+                  {['Website','Mobile App','AI/ML'].map(c => <option key={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="Status">
+                <select value={editForm.status} onChange={e => setEditForm(f=>({...f,status:e.target.value}))} style={inputStyle()}>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                  <option value="on-hold">On Hold</option>
+                </select>
+              </Field>
+              <Field label="Budget (₹)">
+                <input type="number" value={editForm.budget} onChange={e => setEditForm(f=>({...f,budget:e.target.value}))} style={inputStyle()}/>
+              </Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Start Date"><input type="date" value={editForm.startDate} onChange={e => setEditForm(f=>({...f,startDate:e.target.value}))} style={inputStyle()}/></Field>
+              <Field label="End Date"><input type="date" value={editForm.endDate} onChange={e => setEditForm(f=>({...f,endDate:e.target.value}))} style={inputStyle()}/></Field>
+            </div>
+            <Field label="Description">
+              <textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={2} style={{...inputStyle(),resize:'vertical'}}/>
+            </Field>
+            <Field label="Client Commitment">
+              <textarea value={editForm.clientCommitment} onChange={e => setEditForm(f=>({...f,clientCommitment:e.target.value}))} rows={2} style={{...inputStyle(),resize:'vertical',borderColor:'#8B5E0A50'}}/>
+            </Field>
+            <Field label="Accent Colour">
+              <div style={{ display:'flex', gap:8 }}>
+                {COLORS.map(c => <div key={c} onClick={() => setEditForm(f=>({...f,color:c}))} style={{ width:24, height:24, borderRadius:6, background:c, cursor:'pointer', border:editForm.color===c?'3px solid var(--text)':'2px solid transparent', boxSizing:'border-box' }}/>)}
+              </div>
+            </Field>
+          </div>
+        </Modal>
       )}
 
       {/* Milestone Modal */}
-      {mModal && (
-        <Modal title={mEditing ? 'Edit Milestone' : 'Add Milestone'} onClose={() => setMModal(false)}
-          footer={<><Btn variant="ghost" onClick={() => setMModal(false)}>Cancel</Btn><Btn onClick={saveMilestone}>{mEditing ? 'Save' : 'Add'}</Btn></>}
+      {showMilestone && (
+        <Modal title={milestoneEditing?'Edit Milestone':'Add Milestone'} onClose={() => setShowMilestone(false)} width={480}
+          footer={<><Btn variant="ghost" onClick={() => setShowMilestone(false)}>Cancel</Btn><Btn onClick={handleSaveMilestone} disabled={milestoneSaving}>{milestoneSaving?'Saving…':milestoneEditing?'Save':'Add'}</Btn></>}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Field label="Milestone Name" required><input value={mForm.name} onChange={e => setMForm(f=>({...f,name:e.target.value}))} style={inputStyle()} /></Field>
-            <Field label="Due Date"><input type="date" value={mForm.dueDate} onChange={e => setMForm(f=>({...f,dueDate:e.target.value}))} style={inputStyle()} /></Field>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {milestoneErrors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:13 }}>{milestoneErrors.api}</div>}
+            <Field label="Milestone Name" required error={milestoneErrors.name}>
+              <input value={milestoneForm.name} onChange={e => setMilestoneForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Design Approval" style={inputStyle(milestoneErrors.name)} autoFocus/>
+            </Field>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Due Date">
+                <input type="date" value={milestoneForm.dueDate} onChange={e => setMilestoneForm(f=>({...f,dueDate:e.target.value}))} style={inputStyle()}/>
+              </Field>
+              <Field label="Status">
+                <select value={milestoneForm.status} onChange={e => setMilestoneForm(f=>({...f,status:e.target.value}))} style={inputStyle()}>
+                  {MILESTONE_STATUSES.map(s => <option key={s} value={s} style={{textTransform:'capitalize'}}>{s}</option>)}
+                </select>
+              </Field>
+            </div>
+            {milestoneEditing && (
+              <Field label="Completed Date">
+                <input type="date" value={milestoneForm.completedDate||''} onChange={e => setMilestoneForm(f=>({...f,completedDate:e.target.value}))} style={inputStyle()}/>
+              </Field>
+            )}
           </div>
         </Modal>
       )}
 
       {/* Payment Modal */}
-      {pModal && (
-        <Modal title={pEditing ? 'Edit Payment' : 'Add Payment'} onClose={() => setPModal(false)}
-          footer={<><Btn variant="ghost" onClick={() => setPModal(false)}>Cancel</Btn><Btn onClick={savePayment}>{pEditing ? 'Save' : 'Add'}</Btn></>}
+      {showPayment && (
+        <Modal title={paymentEditing?'Edit Payment':'Add Payment'} onClose={() => setShowPayment(false)} width={480}
+          footer={<><Btn variant="ghost" onClick={() => setShowPayment(false)}>Cancel</Btn><Btn onClick={handleSavePayment} disabled={paymentSaving}>{paymentSaving?'Saving…':paymentEditing?'Save':'Add'}</Btn></>}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <Field label="Amount (₹)" required><input type="number" value={pForm.amount} onChange={e => setPForm(f=>({...f,amount:e.target.value}))} style={inputStyle()} /></Field>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {paymentErrors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:13 }}>{paymentErrors.api}</div>}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Amount (₹)" required error={paymentErrors.amount}>
+                <input type="number" value={paymentForm.amount} onChange={e => setPaymentForm(f=>({...f,amount:e.target.value}))} placeholder="e.g. 50000" style={inputStyle(paymentErrors.amount)} autoFocus/>
+              </Field>
               <Field label="Type">
-                <select value={pForm.type} onChange={e => setPForm(f=>({...f,type:e.target.value}))} style={inputStyle()}>
-                  {['Advance','Milestone','Final'].map(t => <option key={t}>{t}</option>)}
+                <select value={paymentForm.type} onChange={e => setPaymentForm(f=>({...f,type:e.target.value}))} style={inputStyle()}>
+                  {PAYMENT_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </Field>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <Field label="Date" required><input type="date" value={pForm.date} onChange={e => setPForm(f=>({...f,date:e.target.value}))} style={inputStyle()} /></Field>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Date" required error={paymentErrors.date}>
+                <input type="date" value={paymentForm.date} onChange={e => setPaymentForm(f=>({...f,date:e.target.value}))} style={inputStyle(paymentErrors.date)}/>
+              </Field>
               <Field label="Status">
-                <select value={pForm.status} onChange={e => setPForm(f=>({...f,status:e.target.value}))} style={inputStyle()}>
-                  {['upcoming','pending','received'].map(s => <option key={s}>{s}</option>)}
+                <select value={paymentForm.status} onChange={e => setPaymentForm(f=>({...f,status:e.target.value}))} style={inputStyle()}>
+                  {PAYMENT_STATUSES.map(s => <option key={s} value={s} style={{textTransform:'capitalize'}}>{s}</option>)}
                 </select>
               </Field>
             </div>
-            <Field label="Notes"><input value={pForm.notes} onChange={e => setPForm(f=>({...f,notes:e.target.value}))} style={inputStyle()} /></Field>
+            <Field label="Notes">
+              <input value={paymentForm.notes} onChange={e => setPaymentForm(f=>({...f,notes:e.target.value}))} placeholder="e.g. Advance for Phase 1" style={inputStyle()}/>
+            </Field>
           </div>
         </Modal>
       )}
 
-      {confirmDel && <ConfirmModal message={`Delete this ${confirmDel.type}?`} onConfirm={handleConfirm} onCancel={() => setConfirmDel(null)} />}
+      {/* Blocker Modal */}
+      {showBlocker && (
+        <Modal title="Add Blocker" onClose={() => setShowBlocker(false)} width={480}
+          footer={<><Btn variant="ghost" onClick={() => setShowBlocker(false)}>Cancel</Btn><Btn variant="danger" onClick={handleAddBlocker} disabled={blockerSaving}>{blockerSaving?'Adding…':'Add Blocker'}</Btn></>}
+        >
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            {blockerErrors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:13 }}>{blockerErrors.api}</div>}
+            <Field label="Blocker Type">
+              <select value={blockerForm.type} onChange={e => setBlockerForm(f=>({...f,type:e.target.value}))} style={inputStyle()}>
+                {BLOCKER_TYPES.map(t => <option key={t} value={t} style={{textTransform:'capitalize'}}>{t.replace('-',' ')}</option>)}
+              </select>
+            </Field>
+            <Field label="Description" required error={blockerErrors.description}>
+              <textarea value={blockerForm.description} onChange={e => setBlockerForm(f=>({...f,description:e.target.value}))} rows={3} placeholder="Describe the blocker and its impact…" style={{...inputStyle(blockerErrors.description), resize:'vertical'}} autoFocus/>
+            </Field>
+          </div>
+        </Modal>
+      )}
+
+      {/* Achievement Modal */}
+      {showAchievement && (
+        <Modal title="Log a Win 🏆" onClose={() => setShowAchievement(false)} width={460}
+          footer={<><Btn variant="ghost" onClick={() => setShowAchievement(false)}>Cancel</Btn><Btn onClick={handleAddAchievement} disabled={achievementSaving}>{achievementSaving?'Saving…':'Log Win'}</Btn></>}
+        >
+          <Field label="What did the team achieve?">
+            <textarea value={achievementText} onChange={e => setAchievementText(e.target.value)} rows={3} placeholder="e.g. Client approved the design in first review, delivered 2 days ahead of schedule…" style={{...inputStyle(), resize:'vertical'}} autoFocus/>
+          </Field>
+        </Modal>
+      )}
+
+      {/* Confirm deletes */}
+      {confirmDelMilestone   && <ConfirmModal message="Delete this milestone?"  onConfirm={handleDeleteMilestone}   onCancel={() => setConfirmDelMilestone(null)}/>}
+      {confirmDelPayment     && <ConfirmModal message="Delete this payment?"    onConfirm={handleDeletePayment}     onCancel={() => setConfirmDelPayment(null)}/>}
+      {confirmDelBlocker     && <ConfirmModal message="Delete this blocker?"    onConfirm={handleDeleteBlocker}     onCancel={() => setConfirmDelBlocker(null)}/>}
+      {confirmDelAchievement && <ConfirmModal message="Delete this win entry?"  onConfirm={handleDeleteAchievement} onCancel={() => setConfirmDelAchievement(null)}/>}
     </div>
   );
 }
