@@ -2,41 +2,34 @@ import api from './api';
 
 const projectService = {
 
-  /* GET /api/projects */
   getAll: async () => {
     const { data } = await api.get('/projects');
     return data.data;
   },
 
-  /* GET /api/projects/:id */
   getById: async (id) => {
     const { data } = await api.get(`/projects/${id}`);
     return data.data;
   },
 
-  /* POST /api/projects */
   create: async (payload) => {
     const { data } = await api.post('/projects', toSnake(payload));
     return data.data;
   },
 
-  /* PUT /api/projects/:id */
   update: async (id, payload) => {
     const { data } = await api.put(`/projects/${id}`, toSnake(payload));
     return data.data;
   },
 
-  /* DELETE /api/projects/:id */
   delete: async (id) => {
     await api.delete(`/projects/${id}`);
   },
 
-  /* PUT /api/projects/:id/completion */
   updateCompletion: async (id, completion) => {
     await api.put(`/projects/${id}/completion`, { completion });
   },
 
-  // ── Milestones ─────────────────────────────────────────
   addMilestone: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/milestones`, {
       name: data.name, due_date: data.dueDate || null,
@@ -62,7 +55,6 @@ const projectService = {
     return res.data.cycleTargeted;
   },
 
-  // ── Payments ────────────────────────────────────────────
   addPayment: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/payments`, {
       amount: parseFloat(data.amount),
@@ -88,7 +80,6 @@ const projectService = {
     await api.delete(`/projects/${projectId}/payments/${paymentId}`);
   },
 
-  // ── Blockers ─────────────────────────────────────────────
   addBlocker: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/blockers`, {
       type:        data.type,
@@ -105,7 +96,6 @@ const projectService = {
     await api.delete(`/projects/${projectId}/blockers/${blockerId}`);
   },
 
-  // ── Achievements ──────────────────────────────────────────
   addAchievement: async (projectId, data) => {
     const res = await api.post(`/projects/${projectId}/achievements`, {
       description: data.description,
@@ -118,6 +108,7 @@ const projectService = {
   },
 };
 
+/* camelCase → snake_case for project payload */
 function toSnake(p) {
   const out = {};
   if (p.name              !== undefined) out.name              = p.name;
@@ -125,7 +116,7 @@ function toSnake(p) {
   if (p.bdOwner           !== undefined) out.bd_owner_id       = p.bdOwner  ? parseInt(p.bdOwner)  : null;
   if (p.pmOwner           !== undefined) out.pm_owner_id       = p.pmOwner  ? parseInt(p.pmOwner)  : null;
   if (p.category          !== undefined) out.category          = p.category;
-  if (p.status            !== undefined) out.status            = p.status;
+  if (p.status             !== undefined) out.status            = p.status;
   if (p.completion        !== undefined) out.completion        = p.completion;
   if (p.startDate         !== undefined) out.start_date        = p.startDate   || null;
   if (p.endDate           !== undefined) out.end_date          = p.endDate     || null;
@@ -135,6 +126,8 @@ function toSnake(p) {
   if (p.color             !== undefined) out.color             = p.color;
   if (p.milestones        !== undefined) out.milestones        = p.milestones;
   if (p.payments          !== undefined) out.payments          = p.payments;
+  // Multi-select bench resources — array of user ids
+  if (p.resources         !== undefined) out.resources         = (p.resources || []).map(id => parseInt(id));
   return out;
 }
 

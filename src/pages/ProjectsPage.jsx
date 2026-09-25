@@ -5,14 +5,17 @@ import {
   Card, StatusBadge, ProgressBar, Badge, Btn, Modal, Field,
   inputStyle, ConfirmModal, PageHeader, EmptyState, formatDate,
 } from '../components/UI';
+import UserMultiSelect from '../components/UserMultiSelect';
 import { Search, Plus, Calendar, AlertCircle } from 'lucide-react';
 import AddProjectModal from '../components/AddProjectModal';
 import projectService from '../services/projectService';
 
 const COLORS = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B1C1C','#A85010'];
+const BD_ROLES = ['bd', 'management', 'super_admin'];
+const PM_ROLES = ['pm', 'management', 'super_admin'];
 
 export default function ProjectsPage() {
-  const { projects, setProjects, clients, categories, fmt, isBD, isManagement, showAddProject, setShowAddProject, dataLoading } = useApp();
+  const { projects, setProjects, clients, categories, users, fmt, isBD, isManagement, showAddProject, setShowAddProject, dataLoading } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch]       = useState('');
@@ -25,7 +28,6 @@ export default function ProjectsPage() {
   const [editErrors, setEditErrors] = useState({});
   const [confirmDel, setConfirmDel] = useState(null);
 
-  /* Category name → colour, built from the live categories table */
   const catColor = (name) => categories.find(c => c.name === name)?.color || '#2E6DB4';
 
   const filtered = projects.filter(p => {
@@ -37,7 +39,14 @@ export default function ProjectsPage() {
   const openEdit = (e, project) => {
     e.stopPropagation();
     setEditTarget(project);
-    setEditForm({ name:project.name||'', clientId:project.clientId||'', category:project.category||categories[0]?.name||'', status:project.status||'active', completion:project.completion??0, budget:project.budget||'', startDate:project.startDate||'', endDate:project.endDate||'', description:project.description||'', clientCommitment:project.clientCommitment||'', color:project.color||'#2E6DB4' });
+    setEditForm({
+      name:project.name||'', clientId:project.clientId||'', category:project.category||categories[0]?.name||'',
+      status:project.status||'active', completion:project.completion??0, budget:project.budget||'',
+      startDate:project.startDate||'', endDate:project.endDate||'', description:project.description||'',
+      clientCommitment:project.clientCommitment||'', color:project.color||'#2E6DB4',
+      bdOwner: project.bdOwner || '', pmOwner: project.pmOwner || '',
+      resources: project.resourceIds || [],
+    });
     setEditErrors({}); setShowEdit(true);
   };
 
@@ -66,7 +75,6 @@ export default function ProjectsPage() {
   return (
     <div className="fade-in">
       <PageHeader
-        title="Projects"
         sub={`${projects.length} project${projects.length!==1?'s':''} total`}
         action={(isBD||isManagement) && <Btn icon={<Plus size={14}/>} onClick={() => setShowAddProject(true)}>New Project</Btn>}
       />
@@ -82,19 +90,18 @@ export default function ProjectsPage() {
         <span style={{ fontSize:13, color:'var(--text-muted)' }}>{filtered.length} of {projects.length}</span>
       </div>
 
-      {/* Skeleton */}
       {dataLoading && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(310px,1fr))', gap:14 }}>
           {[1,2,3,4,5,6].map(i => <div key={i} style={{ height:210, background:'var(--bg-card)', borderRadius:13, border:'1px solid var(--border)', opacity:0.5 }}/>)}
         </div>
       )}
 
-      {/* Cards */}
       {!dataLoading && (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(310px,1fr))', gap:14 }}>
           {filtered.map(p => {
             const client = clients.find(c => c.id===p.clientId||c.id===parseInt(p.clientId));
             const openBlockers = (p.blockers||[]).filter(b=>!b.resolved).length;
+            const resourceCount = (p.resources||[]).length;
             return (
               <Card key={p.id} hover onClick={() => navigate(`/projects/${p.id}`)} style={{ padding:18 }}>
                 <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:12 }}>
@@ -109,6 +116,8 @@ export default function ProjectsPage() {
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 }}>
                   <Badge label={p.category} color={catColor(p.category)}/>
                   <Badge label={fmt(p.budget)} color="var(--text-muted)" bg="var(--bg-elevated)"/>
+                  {p.bdOwnerName && <Badge label={`BD: ${p.bdOwnerName}`} color="#4C3A9E"/>}
+                  {resourceCount > 0 && <Badge label={`${resourceCount} resource${resourceCount!==1?'s':''}`} color="#1A6B3C"/>}
                 </div>
 
                 {p.clientCommitment && (
@@ -148,7 +157,7 @@ export default function ProjectsPage() {
 
       {/* Edit Modal */}
       {showEdit && (
-        <Modal title="Edit Project" onClose={() => setShowEdit(false)} width={620}
+        <Modal title="Edit Project" onClose={() => setShowEdit(false)} width={660}
           footer={<><Btn variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Btn><Btn onClick={handleSaveEdit} disabled={editSaving}>{editSaving?'Saving…':'Save Changes'}</Btn></>}
         >
           <div style={{ display:'flex', flexDirection:'column', gap:13 }}>
@@ -171,6 +180,28 @@ export default function ProjectsPage() {
               <Field label="Start Date"><input type="date" value={editForm.startDate} onChange={e=>eSet('startDate',e.target.value)} style={inputStyle()}/></Field>
               <Field label="End Date"><input type="date" value={editForm.endDate} onChange={e=>eSet('endDate',e.target.value)} style={inputStyle()}/></Field>
             </div>
+
+            {/* BD Owner / PM Owner */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="BD Owner">
+                <select value={editForm.bdOwner} onChange={e=>eSet('bdOwner',e.target.value)} style={inputStyle()}>
+                  <option value="">Unassigned</option>
+                  {users.filter(u=>BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+              <Field label="PM Owner">
+                <select value={editForm.pmOwner} onChange={e=>eSet('pmOwner',e.target.value)} style={inputStyle()}>
+                  <option value="">Unassigned</option>
+                  {users.filter(u=>PM_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            {/* Resources multi-select */}
+            <Field label="Resources (developers, designers, QA, etc.)">
+              <UserMultiSelect users={users} value={editForm.resources||[]} onChange={(v) => eSet('resources', v)} placeholder="Search team members to assign…" />
+            </Field>
+
             <Field label="Description"><textarea value={editForm.description} onChange={e=>eSet('description',e.target.value)} rows={2} style={{...inputStyle(),resize:'vertical'}}/></Field>
             <Field label="Client Commitment"><textarea value={editForm.clientCommitment} onChange={e=>eSet('clientCommitment',e.target.value)} rows={2} style={{...inputStyle(),resize:'vertical',borderColor:'#8B5E0A50'}}/></Field>
             <Field label="Colour">

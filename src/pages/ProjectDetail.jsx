@@ -5,14 +5,14 @@ import {
   Card, StatusBadge, ProgressBar, Badge, Btn, Modal, Field,
   inputStyle, ConfirmModal, ActionMenu, formatDate, EmptyState, SectionTitle,
 } from '../components/UI';
+import UserMultiSelect from '../components/UserMultiSelect';
 import {
-  ArrowLeft, Edit2, CheckCircle2, AlertCircle, Trophy,
-  CreditCard, Milestone, Calendar, Target, RotateCcw,
+  ArrowLeft, Edit2, AlertCircle, Trophy,
+  CreditCard, Milestone, Calendar, Target,
   Plus, Trash2, CheckCheck,
 } from 'lucide-react';
 import projectService from '../services/projectService';
 
-/* ── Constants ────────────────────────────────────────────── */
 const TABS = [
   { key:'overview',      label:'Overview',     icon:Edit2 },
   { key:'milestones',    label:'Milestones',   icon:Milestone },
@@ -26,6 +26,8 @@ const PAYMENT_TYPES      = ['Advance','Milestone','Final'];
 const PAYMENT_STATUSES   = ['upcoming','pending','received'];
 const BLOCKER_TYPES      = ['communication','technical','resource','client-delay','scope-change','other'];
 const COLORS             = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B1C1C','#A85010'];
+const BD_ROLES           = ['bd','management','super_admin'];
+const PM_ROLES           = ['pm','management','super_admin'];
 
 const STATUS_COLOR = {
   completed:     'var(--success)',
@@ -45,7 +47,7 @@ export default function ProjectDetail() {
   const { id }       = useParams();
   const navigate     = useNavigate();
   const {
-    projects, setProjects, clients, fmt, isManagement, isBD,
+    projects, setProjects, clients, categories, users, fmt, isManagement, isBD,
   } = useApp();
 
   const [project, setProject] = useState(null);
@@ -53,13 +55,11 @@ export default function ProjectDetail() {
   const [error, setError]     = useState(null);
   const [tab, setTab]         = useState('overview');
 
-  /* ── Edit project state ─────────────────────────────── */
   const [showEdit, setShowEdit]     = useState(false);
   const [editForm, setEditForm]     = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editErrors, setEditErrors] = useState({});
 
-  /* ── Milestone state ────────────────────────────────── */
   const [showMilestone, setShowMilestone]   = useState(false);
   const [milestoneForm, setMilestoneForm]   = useState({ name:'', dueDate:'', status:'upcoming' });
   const [milestoneEditing, setMilestoneEditing] = useState(null);
@@ -67,7 +67,6 @@ export default function ProjectDetail() {
   const [milestoneErrors, setMilestoneErrors]   = useState({});
   const [confirmDelMilestone, setConfirmDelMilestone] = useState(null);
 
-  /* ── Payment state ──────────────────────────────────── */
   const [showPayment, setShowPayment]   = useState(false);
   const [paymentForm, setPaymentForm]   = useState({ amount:'', type:'Milestone', date:'', status:'upcoming', notes:'' });
   const [paymentEditing, setPaymentEditing] = useState(null);
@@ -75,26 +74,22 @@ export default function ProjectDetail() {
   const [paymentErrors, setPaymentErrors]   = useState({});
   const [confirmDelPayment, setConfirmDelPayment] = useState(null);
 
-  /* ── Blocker state ──────────────────────────────────── */
   const [showBlocker, setShowBlocker]     = useState(false);
   const [blockerForm, setBlockerForm]     = useState({ type:'technical', description:'' });
   const [blockerSaving, setBlockerSaving] = useState(false);
   const [blockerErrors, setBlockerErrors] = useState({});
   const [confirmDelBlocker, setConfirmDelBlocker] = useState(null);
 
-  /* ── Achievement state ──────────────────────────────── */
   const [showAchievement, setShowAchievement]   = useState(false);
   const [achievementText, setAchievementText]   = useState('');
   const [achievementSaving, setAchievementSaving] = useState(false);
   const [confirmDelAchievement, setConfirmDelAchievement] = useState(null);
 
-  /* ── Completion state ───────────────────────────────── */
   const [completionVal, setCompletionVal] = useState(0);
   const [savingCompletion, setSavingCompletion] = useState(false);
 
   const numId = parseInt(id) || id;
 
-  /* ── Load project ───────────────────────────────────── */
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -117,15 +112,13 @@ export default function ProjectDetail() {
 
   const client = project ? clients.find(c => c.id === project.clientId || c.id === parseInt(project.clientId)) : null;
 
-  /* ── Helpers ────────────────────────────────────────── */
   const updateLocal = (changes) => setProject(prev => ({ ...prev, ...changes }));
 
-  /* ── Edit project ───────────────────────────────────── */
   const openEditProject = () => {
     setEditForm({
       name:             project.name             || '',
       clientId:         project.clientId         || '',
-      category:         project.category         || 'Website',
+      category:         project.category         || categories[0]?.name || '',
       status:           project.status           || 'active',
       budget:           project.budget           || '',
       startDate:        project.startDate        || '',
@@ -133,6 +126,9 @@ export default function ProjectDetail() {
       description:      project.description      || '',
       clientCommitment: project.clientCommitment || '',
       color:            project.color            || '#2E6DB4',
+      bdOwner:          project.bdOwner          || '',
+      pmOwner:          project.pmOwner          || '',
+      resources:        project.resourceIds      || [],
     });
     setEditErrors({});
     setShowEdit(true);
@@ -153,7 +149,6 @@ export default function ProjectDetail() {
     }
   };
 
-  /* ── Completion ─────────────────────────────────────── */
   const handleSaveCompletion = async () => {
     setSavingCompletion(true);
     try {
@@ -167,7 +162,6 @@ export default function ProjectDetail() {
     }
   };
 
-  /* ── Milestones ─────────────────────────────────────── */
   const openAddMilestone = () => { setMilestoneForm({ name:'', dueDate:'', status:'upcoming' }); setMilestoneEditing(null); setMilestoneErrors({}); setShowMilestone(true); };
   const openEditMilestone = (m) => {
     setMilestoneForm({ name: m.name, dueDate: m.dueDate||'', status: m.status||'upcoming', completedDate: m.completedDate||'' });
@@ -210,7 +204,6 @@ export default function ProjectDetail() {
     } catch { alert('Failed to toggle cycle target.'); }
   };
 
-  /* ── Payments ───────────────────────────────────────── */
   const openAddPayment = () => { setPaymentForm({ amount:'', type:'Milestone', date:'', status:'upcoming', notes:'' }); setPaymentEditing(null); setPaymentErrors({}); setShowPayment(true); };
   const openEditPayment = (pay) => {
     setPaymentForm({ amount: pay.amount, type: pay.type, date: pay.date||'', status: pay.status, notes: pay.notes||'' });
@@ -247,7 +240,6 @@ export default function ProjectDetail() {
     setConfirmDelPayment(null);
   };
 
-  /* ── Blockers ───────────────────────────────────────── */
   const handleAddBlocker = async () => {
     if (!blockerForm.description?.trim()) { setBlockerErrors({ description:'Required' }); return; }
     setBlockerSaving(true);
@@ -278,7 +270,6 @@ export default function ProjectDetail() {
     setConfirmDelBlocker(null);
   };
 
-  /* ── Achievements ───────────────────────────────────── */
   const handleAddAchievement = async () => {
     if (!achievementText.trim()) return;
     setAchievementSaving(true);
@@ -299,7 +290,6 @@ export default function ProjectDetail() {
     setConfirmDelAchievement(null);
   };
 
-  /* ── Render states ──────────────────────────────────── */
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:300, color:'var(--text-muted)', fontSize:14 }}>
       Loading project…
@@ -318,18 +308,16 @@ export default function ProjectDetail() {
   const payments      = project.payments     || [];
   const blockers      = project.blockers     || [];
   const achievements  = project.achievements || [];
+  const resources     = project.resources    || [];
   const openBlockers  = blockers.filter(b => !b.resolved);
   const totalBudget   = project.budget || 0;
   const received      = payments.filter(p => p.status === 'received').reduce((s,p) => s + p.amount, 0);
-  const pending       = payments.filter(p => p.status !== 'received').reduce((s,p) => s + p.amount, 0);
   const completedMilestones = milestones.filter(m => m.status === 'completed').length;
   const canEdit = isManagement || isBD;
 
-  /* ── Tab badge helper ───────────────────────────────── */
-  const tabBadge = (key) => {
-    if (key === 'blockers' && openBlockers.length > 0) return openBlockers.length;
-    return null;
-  };
+  const tabBadge = (key) => key === 'blockers' && openBlockers.length > 0 ? openBlockers.length : null;
+
+  const initials = (u) => u.avatar || u.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
 
   return (
     <div className="fade-in">
@@ -433,6 +421,25 @@ export default function ProjectDetail() {
                 </div>
               ))}
             </div>
+
+            {/* Resources chips */}
+            <div style={{ marginTop:16 }}>
+              <div style={{ fontSize:12, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>Resources</div>
+              {resources.length === 0
+                ? <div style={{ fontSize:13, color:'var(--text-muted)' }}>No resources assigned yet.</div>
+                : (
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    {resources.map(u => (
+                      <div key={u.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px 4px 4px', borderRadius:16, background:'var(--bg-elevated)', border:'1px solid var(--border)' }}>
+                        <div style={{ width:22, height:22, borderRadius:'50%', background:'#2E6DB4', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{initials(u)}</div>
+                        <span style={{ fontSize:13, fontWeight:600 }}>{u.name}</span>
+                        <span style={{ fontSize:11, color:'var(--text-muted)', textTransform:'capitalize' }}>· {(u.role||'').replace(/_/g,' ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </div>
           </Card>
 
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -471,7 +478,6 @@ export default function ProjectDetail() {
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {milestones.map(m => (
                   <Card key={m.id} style={{ display:'flex', alignItems:'center', gap:14, padding:'13px 16px' }}>
-                    {/* Status dot */}
                     <div style={{ width:10, height:10, borderRadius:'50%', background:STATUS_COLOR[m.status]||'var(--text-muted)', flexShrink:0 }}/>
 
                     <div style={{ flex:1 }}>
@@ -485,7 +491,6 @@ export default function ProjectDetail() {
                     <div style={{ display:'flex', gap:6, alignItems:'center' }}>
                       <StatusBadge status={m.status}/>
 
-                      {/* Cycle target toggle */}
                       <button onClick={() => handleToggleCycle(m.id)} title={m.cycleTargeted ? 'Remove from cycle' : 'Add to cycle'}
                         style={{ padding:'4px 8px', borderRadius:5, border:`1.5px solid ${m.cycleTargeted?'#2E6DB4':'var(--border)'}`, background:m.cycleTargeted?'#EDF4FB':'var(--bg-elevated)', color:m.cycleTargeted?'#2E6DB4':'var(--text-muted)', fontSize:11, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:4 }}>
                         <Target size={11}/>{m.cycleTargeted ? 'Targeted' : 'Target'}
@@ -507,7 +512,6 @@ export default function ProjectDetail() {
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
             <div style={{ display:'flex', gap:14 }}>
               <span style={{ fontSize:13 }}>💰 Received: <strong style={{ color:'var(--success)' }}>{fmt(received)}</strong></span>
-              <span style={{ fontSize:13 }}>⏳ Pending: <strong style={{ color:'var(--warning)' }}>{fmt(pending)}</strong></span>
               <span style={{ fontSize:13 }}>📊 Total: <strong>{fmt(totalBudget)}</strong></span>
             </div>
             {isManagement && <Btn icon={<Plus size={13}/>} onClick={openAddPayment}>Add Payment</Btn>}
@@ -536,7 +540,6 @@ export default function ProjectDetail() {
             )
           }
 
-          {/* Budget progress */}
           {payments.length > 0 && (
             <Card style={{ marginTop:14, padding:'14px 18px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, fontSize:13 }}>
@@ -563,7 +566,6 @@ export default function ProjectDetail() {
             ? <EmptyState icon="✅" message="No blockers — project is running smoothly."/>
             : (
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {/* Open blockers first */}
                 {[...blockers].sort((a,b) => a.resolved - b.resolved).map(b => (
                   <Card key={b.id} style={{ borderLeft:`4px solid ${b.resolved?'var(--success)':'var(--danger)'}`, padding:'13px 16px', opacity:b.resolved?0.7:1 }}>
                     <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:12 }}>
@@ -635,7 +637,7 @@ export default function ProjectDetail() {
 
       {/* Edit Project */}
       {showEdit && (
-        <Modal title="Edit Project" onClose={() => setShowEdit(false)} width={600}
+        <Modal title="Edit Project" onClose={() => setShowEdit(false)} width={660}
           footer={<><Btn variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Btn><Btn onClick={handleSaveProject} disabled={editSaving}>{editSaving?'Saving…':'Save Changes'}</Btn></>}
         >
           <div style={{ display:'flex', flexDirection:'column', gap:13 }}>
@@ -654,7 +656,7 @@ export default function ProjectDetail() {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <Field label="Category">
                 <select value={editForm.category} onChange={e => setEditForm(f=>({...f,category:e.target.value}))} style={inputStyle()}>
-                  {['Website','Mobile App','AI/ML'].map(c => <option key={c}>{c}</option>)}
+                  {categories.map(c => <option key={c.id} value={c.name}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>)}
                 </select>
               </Field>
               <Field label="Status">
@@ -672,6 +674,28 @@ export default function ProjectDetail() {
               <Field label="Start Date"><input type="date" value={editForm.startDate} onChange={e => setEditForm(f=>({...f,startDate:e.target.value}))} style={inputStyle()}/></Field>
               <Field label="End Date"><input type="date" value={editForm.endDate} onChange={e => setEditForm(f=>({...f,endDate:e.target.value}))} style={inputStyle()}/></Field>
             </div>
+
+            {/* BD Owner / PM Owner */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="BD Owner">
+                <select value={editForm.bdOwner||''} onChange={e => setEditForm(f=>({...f,bdOwner:e.target.value}))} style={inputStyle()}>
+                  <option value="">Unassigned</option>
+                  {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+              <Field label="PM Owner">
+                <select value={editForm.pmOwner||''} onChange={e => setEditForm(f=>({...f,pmOwner:e.target.value}))} style={inputStyle()}>
+                  <option value="">Unassigned</option>
+                  {users.filter(u => PM_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+            </div>
+
+            {/* Resources multi-select */}
+            <Field label="Resources (developers, designers, QA, etc.)">
+              <UserMultiSelect users={users} value={editForm.resources||[]} onChange={(v) => setEditForm(f=>({...f,resources:v}))} placeholder="Search team members to assign…" />
+            </Field>
+
             <Field label="Description">
               <textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={2} style={{...inputStyle(),resize:'vertical'}}/>
             </Field>
@@ -780,7 +804,6 @@ export default function ProjectDetail() {
         </Modal>
       )}
 
-      {/* Confirm deletes */}
       {confirmDelMilestone   && <ConfirmModal message="Delete this milestone?"  onConfirm={handleDeleteMilestone}   onCancel={() => setConfirmDelMilestone(null)}/>}
       {confirmDelPayment     && <ConfirmModal message="Delete this payment?"    onConfirm={handleDeletePayment}     onCancel={() => setConfirmDelPayment(null)}/>}
       {confirmDelBlocker     && <ConfirmModal message="Delete this blocker?"    onConfirm={handleDeleteBlocker}     onCancel={() => setConfirmDelBlocker(null)}/>}

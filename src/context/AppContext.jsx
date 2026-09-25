@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { useAuth } from './AuthContext';
 import { formatAmount } from '../components/UI';
 
-/* ── API services ──────────────────────────────────────────── */
 import clientService      from '../services/clientService';
 import projectService     from '../services/projectService';
 import serviceTypeService from '../services/serviceTypeService';
@@ -10,6 +9,7 @@ import clientServiceApi   from '../services/clientServiceApi';
 import hostingService     from '../services/hostingService';
 import currencyService    from '../services/currencyService';
 import categoryService    from '../services/categoryService';
+import userService        from '../services/userService';
 
 const AppContext = createContext(null);
 
@@ -29,6 +29,7 @@ export function AppProvider({ children }) {
   const [clientServices, setClientServices] = useState([]);
   const [serviceTypes,   setServiceTypes]   = useState([]);
   const [categories,     setCategories]     = useState([]);
+  const [users,          setUsers]          = useState([]);
   const [currencies,     setCurrencies]     = useState([DEFAULT_CURRENCY]);
   const [activeCurrency, setActiveCurrency] = useState(DEFAULT_CURRENCY);
 
@@ -51,7 +52,7 @@ export function AppProvider({ children }) {
     try {
       const [
         clientsData, projectsData, servicesData,
-        clientServicesData, hostingData, currenciesData, categoriesData,
+        clientServicesData, hostingData, currenciesData, categoriesData, usersData,
       ] = await Promise.all([
         clientService.getAll(),
         projectService.getAll(),
@@ -60,6 +61,7 @@ export function AppProvider({ children }) {
         hostingService.getAll(),
         currencyService.getAll(),
         categoryService.getAll(),
+        userService.getAll(),
       ]);
 
       setClients(clientsData);
@@ -70,6 +72,7 @@ export function AppProvider({ children }) {
       setCurrencies(currenciesData.list);
       if (currenciesData.default) setActiveCurrency(currenciesData.default);
       setCategories(categoriesData);
+      setUsers(usersData);
 
     } catch (err) {
       console.error('Failed to load app data:', err);
@@ -84,7 +87,7 @@ export function AppProvider({ children }) {
       loadAllData();
     } else {
       setClients([]); setProjects([]); setHosting([]);
-      setClientServices([]); setServiceTypes([]); setCategories([]);
+      setClientServices([]); setServiceTypes([]); setCategories([]); setUsers([]);
       setCurrencies([DEFAULT_CURRENCY]); setActiveCurrency(DEFAULT_CURRENCY);
     }
   }, [user]);
@@ -106,6 +109,11 @@ export function AppProvider({ children }) {
   const updateCategory = (id, data) => setCategories(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
   const deleteCategory = (id)       => setCategories(prev => prev.filter(c => c.id !== id));
 
+  /* User / Team CRUD */
+  const addUser    = (u)        => setUsers(prev => [...prev, u]);
+  const updateUser = (id, data) => setUsers(prev => prev.map(u => u.id === id ? { ...u, ...data } : u));
+  const deleteUser = (id)       => setUsers(prev => prev.filter(u => u.id !== id));
+
   /* Client CRUD */
   const addClient    = (c)        => setClients(prev => [c, ...prev]);
   const updateClient = (id, data) => setClients(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
@@ -123,7 +131,7 @@ export function AppProvider({ children }) {
 
   /* Project CRUD */
   const addProject = (data) => {
-    const p = { ...data, id:`p${Date.now()}`, status:'active', completion:0, blockers:[], achievements:[], documents:[], payments:data.payments||[], milestones:data.milestones||[] };
+    const p = { ...data, id:`p${Date.now()}`, status:'active', completion:0, blockers:[], achievements:[], documents:[], payments:data.payments||[], milestones:data.milestones||[], resources:data.resources||[] };
     setProjects(prev => [p, ...prev]);
     return p;
   };
@@ -164,6 +172,9 @@ export function AppProvider({ children }) {
 
       categories, setCategories,
       addCategory, updateCategory, deleteCategory,
+
+      users, setUsers,
+      addUser, updateUser, deleteUser,
 
       clients,        setClients,
       projects,       setProjects,

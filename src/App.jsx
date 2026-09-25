@@ -15,6 +15,7 @@ import HostingPage         from './pages/HostingPage';
 import ServicesPage        from './pages/ServicesPage';
 import MaintenancePage     from './pages/MaintenancePage';
 import CurrenciesPage      from './pages/CurrenciesPage';
+import TeamPage            from './pages/TeamPage';
 
 function ProtectedLayout() {
   const { isAuthenticated, loading } = useAuth();
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="projects/:id"     element={<ProjectDetail />} />
               <Route path="milestones"       element={<MilestonesPage />} />
               <Route path="resources"        element={<ResourcesPage />} />
+              <Route path="team"             element={<TeamPage />} />
               <Route path="categories"       element={<CategoryPage />} />
               <Route path="hosting"          element={<HostingPage />} />
               <Route path="services"         element={<ServicesPage />} />

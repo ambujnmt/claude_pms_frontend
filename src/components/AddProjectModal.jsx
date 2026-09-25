@@ -1,29 +1,37 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Modal, Field, inputStyle, Btn } from './UI';
+import UserMultiSelect from './UserMultiSelect';
 import { Plus, Trash2 } from 'lucide-react';
 import projectService from '../services/projectService';
 
 const COLORS = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B1C1C'];
 
+/* Anyone who can act as a BD owner on a deal */
+const BD_ROLES = ['bd', 'management', 'super_admin'];
+
 export default function AddProjectModal() {
-  const { setShowAddProject, setProjects, user, clients, categories } = useApp();
+  const { setShowAddProject, setProjects, user, clients, categories, users } = useApp();
 
   const EMPTY = {
     name: '', clientId: '', category: categories[0]?.name || 'Website',
     budget: '', startDate: '', endDate: '',
-    bdOwner: '', pmOwner: '',
+    bdOwner: BD_ROLES.includes(user?.role) ? (user?.id || '') : '',
+    pmOwner: '',
+    resources: [],
     description: '', clientCommitment: '', color: '#1B2E6B',
     milestones: [{ name: '', dueDate: '' }],
     payments:   [{ amount: '', date: '', type: 'Advance', notes: '' }],
   };
 
-  const [form, setForm]     = useState({ ...EMPTY, bdOwner: user?.id || '' });
+  const [form, setForm]     = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [step, setStep]     = useState(1);
   const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const bdOptions = users.filter(u => BD_ROLES.includes(u.role));
 
   const validate = () => {
     const e = {};
@@ -50,6 +58,7 @@ export default function AddProjectModal() {
         endDate:           form.endDate,
         bdOwner:           form.bdOwner || null,
         pmOwner:           form.pmOwner || null,
+        resources:         form.resources,
         description:       form.description,
         clientCommitment:  form.clientCommitment,
         color:             form.color,
@@ -75,20 +84,20 @@ export default function AddProjectModal() {
   const updM = (i, k, v) => setForm(f => ({ ...f, milestones: f.milestones.map((m, idx) => idx === i ? { ...m, [k]: v } : m) }));
   const updP = (i, k, v) => setForm(f => ({ ...f, payments:   f.payments.map((p, idx)  => idx === i ? { ...p, [k]: v } : p) }));
 
-  const stepLabels = ['Project Details', 'Milestones', 'Payments'];
+  const stepLabels = ['Project Details', 'Team', 'Milestones', 'Payments'];
 
   return (
     <Modal
       title="Add New Project"
-      subtitle="Fill in the details, milestones, and payment schedule"
+      subtitle="Fill in the details, team, milestones, and payment schedule"
       onClose={() => setShowAddProject(false)}
-      width={660}
+      width={680}
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
           <Btn variant="ghost" onClick={() => setShowAddProject(false)}>Cancel</Btn>
           <div style={{ display: 'flex', gap: 8 }}>
             {step > 1 && <Btn variant="ghost" onClick={() => setStep(s => s - 1)}>← Back</Btn>}
-            {step < 3
+            {step < 4
               ? <Btn onClick={() => { if (step === 1 && !validate()) return; setStep(s => s + 1); }}>Next →</Btn>
               : <Btn onClick={handleSubmit} disabled={saving}>{saving ? 'Creating…' : 'Create Project'}</Btn>
             }
@@ -100,13 +109,13 @@ export default function AddProjectModal() {
       <div style={{ display: 'flex', marginBottom: 20 }}>
         {stepLabels.map((label, i) => (
           <button key={i} onClick={() => setStep(i + 1)} style={{
-            flex: 1, padding: '7px 12px', border: 'none', cursor: 'pointer',
+            flex: 1, padding: '7px 10px', border: 'none', cursor: 'pointer',
             fontSize: 13, fontWeight: step === i + 1 ? 700 : 400,
             fontFamily: 'var(--font-body)',
             background: step === i + 1 ? '#1B2E6B' : 'var(--bg-elevated)',
             color: step === i + 1 ? '#fff' : 'var(--text-muted)',
-            borderRight: i < 2 ? '1px solid var(--border)' : 'none',
-            borderRadius: i === 0 ? '7px 0 0 7px' : i === 2 ? '0 7px 7px 0' : '0',
+            borderRight: i < 3 ? '1px solid var(--border)' : 'none',
+            borderRadius: i === 0 ? '7px 0 0 7px' : i === 3 ? '0 7px 7px 0' : '0',
           }}>{i + 1}. {label}</button>
         ))}
       </div>
@@ -168,8 +177,31 @@ export default function AddProjectModal() {
         </div>
       )}
 
-      {/* Step 2 — Milestones */}
+      {/* Step 2 — Team (BD Owner, PM Owner, Resources) */}
       {step === 2 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="BD Owner">
+              <select value={form.bdOwner} onChange={e => set('bdOwner', e.target.value)} style={inputStyle()}>
+                <option value="">Select BD owner…</option>
+                {bdOptions.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </Field>
+            <Field label="PM Owner">
+              <select value={form.pmOwner} onChange={e => set('pmOwner', e.target.value)} style={inputStyle()}>
+                <option value="">Select PM owner…</option>
+                {users.filter(u => ['pm','management','super_admin'].includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </Field>
+          </div>
+          <Field label="Resources (developers, designers, QA, etc.)">
+            <UserMultiSelect users={users} value={form.resources} onChange={(v) => set('resources', v)} placeholder="Search team members to assign…" />
+          </Field>
+        </div>
+      )}
+
+      {/* Step 3 — Milestones */}
+      {step === 3 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Define key delivery milestones. You can add more later.</p>
           {form.milestones.map((m, i) => (
@@ -188,8 +220,8 @@ export default function AddProjectModal() {
         </div>
       )}
 
-      {/* Step 3 — Payments */}
-      {step === 3 && (
+      {/* Step 4 — Payments */}
+      {step === 4 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Set up the payment schedule.</p>
           {form.payments.map((p, i) => (

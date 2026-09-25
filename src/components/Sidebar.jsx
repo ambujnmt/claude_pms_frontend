@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 const NAV = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard',   exact: true },
@@ -8,7 +8,8 @@ const NAV = [
   { to: '/projects',    icon: FolderKanban,    label: 'Projects' },
   { to: '/milestones',  icon: Milestone,       label: 'Milestones' },
   { to: '/maintenance', icon: Wrench,          label: 'Maintenance' },
-  { to: '/resources',   icon: BarChart2,       label: 'Resources' },
+  { to: '/resources',   icon: BarChart2,       label: 'Workload' },
+  { to: '/team',        icon: UserCog,         label: 'Team' },
   { to: '/hosting',     icon: Server,          label: 'Hosting' },
   { to: '/services',    icon: Layers,          label: 'Services' },
   { to: '/currencies',  icon: DollarSign,      label: 'Currencies' },
@@ -86,7 +87,7 @@ export default function Sidebar() {
           <div style={{ width:34, height:34, borderRadius:'50%', background:'#4A90D9', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:'#fff' }}>{user?.avatar}</div>
           <div style={{ overflow:'hidden' }}>
             <div style={{ fontSize:14, fontWeight:600, color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{user?.name}</div>
-            <div style={{ fontSize:12, color:'rgba(255,255,255,0.55)', marginTop:2, textTransform:'capitalize' }}>{user?.role}</div>
+            <div style={{ fontSize:12, color:'rgba(255,255,255,0.55)', marginTop:2, textTransform:'capitalize' }}>{(user?.role||'').replace(/_/g,' ')}</div>
           </div>
         </div>
       )}

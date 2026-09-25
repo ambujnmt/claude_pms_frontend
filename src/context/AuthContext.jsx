@@ -9,7 +9,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
 
-  /* On mount — validate stored token */
   useEffect(() => {
     const restore = async () => {
       if (!getToken()) { setLoading(false); return; }
@@ -38,28 +37,29 @@ export function AuthProvider({ children }) {
     }
   };
 
-  /* ── Signout — clears token, resets state, redirects to /login ── */
   const logout = async () => {
     try {
       await authService.logout();
     } catch {
-      // even if API call fails, clear local session
+      // clear local session regardless of API result
     } finally {
       clearToken();
       setUser(null);
-      window.location.href = '/#/login';   // hard redirect — clears all app state
+      window.location.href = '/#/login';
     }
   };
 
-  const isManagement = user?.role === 'management';
-  const isPM         = user?.role === 'pm'  || user?.role === 'management';
-  const isBD         = user?.role === 'bd'  || user?.role === 'management';
+  /* super_admin carries every privilege alongside its own role */
+  const isSuperAdmin = user?.role === 'super_admin';
+  const isManagement = isSuperAdmin || user?.role === 'management';
+  const isPM         = isSuperAdmin || isManagement || user?.role === 'pm';
+  const isBD         = isSuperAdmin || isManagement || user?.role === 'bd';
 
   return (
     <AuthContext.Provider value={{
       user, loading, error,
       login, logout,
-      isManagement, isPM, isBD,
+      isSuperAdmin, isManagement, isPM, isBD,
       isAuthenticated: !!user,
     }}>
       {children}
