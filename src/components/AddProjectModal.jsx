@@ -2,22 +2,22 @@ import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Modal, Field, inputStyle, Btn } from './UI';
 import { Plus, Trash2 } from 'lucide-react';
-import { CATEGORIES } from '../data/mockData';
 import projectService from '../services/projectService';
 
 const COLORS = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B1C1C'];
 
-const EMPTY = {
-  name: '', clientId: '', category: CATEGORIES.WEBSITE,
-  budget: '', startDate: '', endDate: '',
-  bdOwner: '', pmOwner: '',
-  description: '', clientCommitment: '', color: '#1B2E6B',
-  milestones: [{ name: '', dueDate: '' }],
-  payments:   [{ amount: '', date: '', type: 'Advance', notes: '' }],
-};
-
 export default function AddProjectModal() {
-  const { setShowAddProject, setProjects, user, clients } = useApp();
+  const { setShowAddProject, setProjects, user, clients, categories } = useApp();
+
+  const EMPTY = {
+    name: '', clientId: '', category: categories[0]?.name || 'Website',
+    budget: '', startDate: '', endDate: '',
+    bdOwner: '', pmOwner: '',
+    description: '', clientCommitment: '', color: '#1B2E6B',
+    milestones: [{ name: '', dueDate: '' }],
+    payments:   [{ amount: '', date: '', type: 'Advance', notes: '' }],
+  };
+
   const [form, setForm]     = useState({ ...EMPTY, bdOwner: user?.id || '' });
   const [errors, setErrors] = useState({});
   const [step, setStep]     = useState(1);
@@ -111,7 +111,6 @@ export default function AddProjectModal() {
         ))}
       </div>
 
-      {/* API error */}
       {errors.api && (
         <div style={{ padding: '8px 12px', borderRadius: 7, background: 'var(--danger-dim)', color: 'var(--danger)', fontSize: 14, marginBottom: 14 }}>
           {errors.api}
@@ -141,7 +140,10 @@ export default function AddProjectModal() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Field label="Category">
               <select value={form.category} onChange={e => set('category', e.target.value)} style={inputStyle()}>
-                {Object.values(CATEGORIES).map(c => <option key={c}>{c}</option>)}
+                {categories.length === 0
+                  ? <option value={form.category}>{form.category}</option>
+                  : categories.map(c => <option key={c.id} value={c.name}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>)
+                }
               </select>
             </Field>
             <Field label="Budget (₹)" required error={errors.budget}>

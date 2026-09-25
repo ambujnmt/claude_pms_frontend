@@ -1,178 +1,235 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, ProgressBar, Badge, formatDate } from '../components/UI';
-import { resources, getTechDistribution, getTechProjection } from '../data/mockData';
+import { Card, ProgressBar, Badge, formatDate, PageHeader, EmptyState } from '../components/UI';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Zap, Users, TrendingUp, TrendingDown, AlertOctagon } from 'lucide-react';
+import { Users, TrendingUp, AlertOctagon, Calendar, Briefcase } from 'lucide-react';
 
-const TECH_COLORS = ['#1B4F72','#5B3FA6','#B05A12','#1A6B3C','#92520A','#A01C1C','#0D6E6E'];
-
-export default function ResourcesPage() { const { projects } = useApp();
+export default function ResourcesPage() {
+  const { projects, categories, fmt, dataLoading } = useApp();
   const navigate = useNavigate();
-  const techDist   = getTechDistribution(projects);
-  const projection = getTechProjection(projects);
-  const sorted     = [...resources].sort((a, b) => b.utilization - a.utilization);
-  const utilColor  = u => u > 85 ? 'var(--danger)' : u > 70 ? 'var(--warning)' : 'var(--success)';
+
+  /* ── Active projects only feed the workload/distribution views ── */
+  const activeProjects = useMemo(() => projects.filter(p => p.status === 'active'), [projects]);
+
+  /* ── Team workload — grouped by PM owner ─────────────────────── */
+  const teamWorkload = useMemo(() => {
+    const map = {};
+    activeProjects.forEach(p => {
+      const key = p.pmOwnerName || 'Unassigned';
+      if (!map[key]) map[key] = { name: key, projects: [], totalBudget: 0, totalCompletion: 0 };
+      map[key].projects.push(p);
+      map[key].totalBudget += p.budget || 0;
+      map[key].totalCompletion += p.completion || 0;
+    });
+    return Object.values(map)
+      .map(r => ({ ...r, avgCompletion: r.projects.length ? Math.round(r.totalCompletion / r.projects.length) : 0 }))
+      .sort((a, b) => b.projects.length - a.projects.length);
+  }, [activeProjects]);
+
+  /* ── BD workload — grouped by BD owner ───────────────────────── */
+  const bdWorkload = useMemo(() => {
+    const map = {};
+    activeProjects.forEach(p => {
+      const key = p.bdOwnerName || 'Unassigned';
+      if (!map[key]) map[key] = { name: key, projects: [], totalBudget: 0 };
+      map[key].projects.push(p);
+      map[key].totalBudget += p.budget || 0;
+    });
+    return Object.values(map).sort((a, b) => b.totalBudget - a.totalBudget);
+  }, [activeProjects]);
+
+  /* ── Category distribution ───────────────────────────────────── */
+  const categoryDistribution = useMemo(() => {
+    return categories.map(c => ({
+      name:  c.name,
+      value: activeProjects.filter(p => p.category === c.name).length,
+      color: c.color,
+    })).filter(c => c.value > 0);
+  }, [categories, activeProjects]);
+
+  /* ── Upcoming deadlines (next 30 days, active only) ──────────── */
+  const upcomingDeadlines = useMemo(() => {
+    const now = new Date();
+    return activeProjects
+      .filter(p => p.endDate)
+      .map(p => ({ ...p, daysLeft: Math.ceil((new Date(p.endDate) - now) / (1000*60*60*24)) }))
+      .filter(p => p.daysLeft >= 0 && p.daysLeft <= 30)
+      .sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [activeProjects]);
+
+  /* ── Overdue active projects ──────────────────────────────────── */
+  const overdueProjects = useMemo(() => {
+    const now = new Date();
+    return activeProjects.filter(p => p.endDate && new Date(p.endDate) < now);
+  }, [activeProjects]);
+
+  /* ── Top-level stats ──────────────────────────────────────────── */
+  const uniqueTeamMembers = new Set([
+    ...activeProjects.map(p => p.pmOwnerName).filter(Boolean),
+    ...activeProjects.map(p => p.bdOwnerName).filter(Boolean),
+  ]).size;
+
+  const totalManagedBudget = activeProjects.reduce((s, p) => s + (p.budget || 0), 0);
+  const avgCompletion = activeProjects.length
+    ? Math.round(activeProjects.reduce((s, p) => s + (p.completion || 0), 0) / activeProjects.length)
+    : 0;
+
+  if (dataLoading) {
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+        {[1,2,3,4].map(i => <div key={i} style={{ height:90, background:'var(--bg-card)', borderRadius:13, border:'1px solid var(--border)', opacity:0.5 }}/>)}
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }} className="fade-in">
-      {/* Summary strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+    <div className="fade-in">
+      <PageHeader title="Resources" sub="Team workload and delivery capacity across active projects" />
+
+      {/* KPI strip */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
         {[
-          { icon: <Users size={18}/>, label: 'Total Resources', val: resources.length, color: 'var(--accent)' }, { icon: <Zap size={18}/>, label: 'Over-allocated (>85%)',val: resources.filter(r=>r.utilization>85).length, color: 'var(--danger)' }, { icon: <Users size={18}/>, label: 'Available Capacity', val: resources.filter(r=>r.utilization<70).length, color: 'var(--success)' }, ].map(s => (
-          <Card key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${s.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.color, flexShrink: 0 }}>{s.icon}</div>
+          { label:'Active Projects',   value:activeProjects.length,        icon:<Briefcase size={16}/>,    color:'#1B2E6B', bg:'#EEF2FA' },
+          { label:'Team Members Busy', value:uniqueTeamMembers,            icon:<Users size={16}/>,        color:'#2E6DB4', bg:'#EDF4FB' },
+          { label:'Avg Completion',    value:`${avgCompletion}%`,          icon:<TrendingUp size={16}/>,   color:'var(--success)', bg:'#EDF7F2' },
+          { label:'Overdue',           value:overdueProjects.length,       icon:<AlertOctagon size={16}/>, color:overdueProjects.length?'var(--danger)':'var(--text-muted)', bg:overdueProjects.length?'#FEF2F2':'var(--bg-elevated)' },
+        ].map(k => (
+          <Card key={k.label} style={{ display:'flex', alignItems:'center', gap:12, padding:14, borderTop:`3px solid ${k.color}` }}>
+            <div style={{ width:34, height:34, borderRadius:9, background:k.bg, display:'flex', alignItems:'center', justifyContent:'center', color:k.color, flexShrink:0 }}>{k.icon}</div>
             <div>
-              <div style={{ fontFamily: 'var(--font-body)', fontSize: 26, fontWeight: 700, color: s.color }}>{s.val}</div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 700 }}>{s.label}</div>
+              <div style={{ fontSize:22, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>{k.label}</div>
             </div>
           </Card>
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-        {/* Resource list */}
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '13px 20px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-body)', fontSize: 16, fontWeight: 700 }}>Resource Allocation</div>
-          {sorted.map((r, i) => { const color = utilColor(r.utilization);
-            const rProjects = r.projects.map(pid => projects.find(p => p.id === pid)).filter(Boolean);
-            return (
-              <div key={r.id} style={{ padding: '14px 20px', borderBottom: i < sorted.length-1 ? '1px solid var(--border)' : 'none', display: 'flex', gap: 14, alignItems: 'center' }}>
-                <div style={{ width: 40, height: 40, borderRadius: '50%', background: `${color}18`, border: `2px solid ${color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color, flexShrink: 0 }}>{r.avatar}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{r.name}</div>
-                      <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 1 }}>{r.tech}</div>
+      <div style={{ display:'grid', gridTemplateColumns:'1.3fr 1fr', gap:16, marginBottom:20 }}>
+
+        {/* ── PM Workload ─────────────────────────────────────────── */}
+        <Card>
+          <div style={{ fontSize:15, fontWeight:700, color:'#1B2E6B', marginBottom:14 }}>Project Manager Workload</div>
+          {teamWorkload.length === 0
+            ? <EmptyState icon="👤" message="No active projects assigned yet."/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {teamWorkload.map(t => (
+                  <div key={t.name}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <div style={{ width:28, height:28, borderRadius:'50%', background:'#2E6DB4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff' }}>
+                          {t.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+                        </div>
+                        <span style={{ fontSize:14, fontWeight:600 }}>{t.name}</span>
+                      </div>
+                      <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+                        <Badge label={`${t.projects.length} project${t.projects.length!==1?'s':''}`} color="#2E6DB4"/>
+                        <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmt(t.totalBudget)}</span>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color }}>{r.utilization}%</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, paddingLeft:36 }}>
+                      <ProgressBar value={t.avgCompletion} color="#2E6DB4" height={5}/>
+                      <span style={{ fontSize:12, fontWeight:700, color:'#2E6DB4', minWidth:32 }}>{t.avgCompletion}%</span>
+                    </div>
                   </div>
-                  <ProgressBar value={r.utilization} color={color} height={4} bg="var(--bg-elevated)" />
-                  <div style={{ display: 'flex', gap: 5, marginTop: 7, flexWrap: 'wrap' }}>
-                    {rProjects.map(p => p && (
-                      <button key={p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ padding: '2px 8px', borderRadius: 5, border: `1px solid ${p.color}30`, background: `${p.color}10`, color: p.color, fontSize: 14, cursor: 'pointer', fontWeight: 700 }}>
-                        {p.name.split(' ').slice(0,2).join(' ')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
-            );
-          })}
+            )
+          }
         </Card>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Tech load chart */}
-          <Card>
-            <div style={{ fontFamily: 'var(--font-body)', fontSize: 16, fontWeight: 700, marginBottom: 2 }}>Technology Load</div>
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 14 }}>Active project demand by stack</div>
-            <ResponsiveContainer width="100%" height={190}>
-              <BarChart data={techDist.slice(0,7)} layout="vertical" barSize={11}>
-                <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize:14 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 14, fontFamily: 'Inter' }} axisLine={false} tickLine={false} width={88} />
-                <Tooltip contentStyle={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 8, fontSize: 14 }} />
-                <Bar dataKey="value" radius={[0,4,4,0]}>
-                  {techDist.slice(0,7).map((_, i) => <Cell key={i} fill={TECH_COLORS[i % TECH_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-
-          {/* Capacity insight */}
-          <Card>
-            <div style={{ fontFamily: 'var(--font-body)', fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Quick Insight</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14, color: 'var(--text-dim)' }}>
-              <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--danger-dim)', border: '1px solid #A01C1C18' }}>
-                <strong style={{ color: 'var(--danger)' }}>React Native</strong> is over-allocated — new mobile projects may face resource constraints.
-              </div>
-              <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--warning-dim)', border: '1px solid #92520A18' }}>
-                <strong style={{ color: 'var(--warning)' }}>Python / ML</strong> moderate load. 2 AI projects nearing delivery will free capacity soon.
-              </div>
-              <div style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--success-dim)', border: '1px solid #1A6B3C18' }}>
-                <strong style={{ color: 'var(--success)' }}>Vue / Django</strong> has room — good window for new website projects.
-              </div>
-            </div>
-          </Card>
-        </div>
+        {/* ── Category Distribution Chart ─────────────────────────── */}
+        <Card>
+          <div style={{ fontSize:15, fontWeight:700, color:'#1B2E6B', marginBottom:14 }}>Active Projects by Category</div>
+          {categoryDistribution.length === 0
+            ? <EmptyState icon="📊" message="No active projects to chart."/>
+            : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={categoryDistribution} layout="vertical" margin={{ left: 10, right: 20 }}>
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: 'var(--text)' }} axisLine={false} tickLine={false} width={100} />
+                  <Tooltip formatter={(v) => [`${v} project${v!==1?'s':''}`, '']} contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid var(--border)' }} />
+                  <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20}>
+                    {categoryDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )
+          }
+        </Card>
       </div>
 
-      {/* Tech Projection */}
-      <TechProjection projection={projection} />
-    </div>
-  );
-}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
 
-function TechProjection({ projection }) { const { freeing, inDemand } = projection;
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <TrendingUp size={16} color="var(--accent)" />
-        <h2 style={{ fontFamily: 'var(--font-body)', fontSize: 20, fontWeight: 700 }}>Technology Projection — Next 2–3 Months</h2>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        {/* Freeing up */}
-        <Card style={{ padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--success-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><TrendingDown size={14} color="var(--success)" /></div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--success)' }}>Resources Freeing Up</div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Projects &gt;70% done, ending within 3 months</div>
-            </div>
+        {/* ── BD Workload ──────────────────────────────────────────── */}
+        <Card>
+          <div style={{ fontSize:15, fontWeight:700, color:'#1B2E6B', marginBottom:14 }}>Business Development Pipeline</div>
+          {bdWorkload.length === 0
+            ? <EmptyState icon="💼" message="No active projects with a BD owner."/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {bdWorkload.map(b => (
+                  <div key={b.name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', borderRadius:8, background:'var(--bg-elevated)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ width:26, height:26, borderRadius:'50%', background:'#4C3A9E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#fff' }}>
+                        {b.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+                      </div>
+                      <span style={{ fontSize:14, fontWeight:600 }}>{b.name}</span>
+                    </div>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <Badge label={`${b.projects.length} deal${b.projects.length!==1?'s':''}`} color="#4C3A9E"/>
+                      <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmt(b.totalBudget)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </Card>
+
+        {/* ── Upcoming Deadlines ───────────────────────────────────── */}
+        <Card>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:'#1B2E6B' }}>Upcoming Deadlines</div>
+            <span style={{ fontSize:12, color:'var(--text-muted)' }}>Next 30 days</span>
           </div>
-          {freeing.length === 0 && <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>No resources freeing up in this window.</div>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {freeing.map((f, i) => (
-              <div key={i} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--success-dim)', border: '1px solid #1A6B3C20' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>{f.resource.name}</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', }}>~{f.freeingInMonths}mo</span>
-                </div>
-                <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>{f.techStack}</div>
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                  {f.projects.map(p => (
-                    <span key={p.id} style={{ fontSize: 14, color: 'var(--text-dim)', background: 'var(--bg-elevated)', padding: '2px 7px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                      {p.name.split(' ').slice(0,2).join(' ')} — {p.completion}%
-                    </span>
-                  ))}
-                </div>
+          {upcomingDeadlines.length === 0
+            ? <EmptyState icon="📅" message="No deadlines in the next 30 days."/>
+            : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {upcomingDeadlines.map(p => (
+                  <div key={p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:8, background:'var(--bg-elevated)', cursor:'pointer' }}>
+                    <div style={{ width:3, height:28, borderRadius:3, background:p.color||'#2E6DB4', flexShrink:0 }}/>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
+                      <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:3, marginTop:2 }}><Calendar size={9}/>{formatDate(p.endDate)}</div>
+                    </div>
+                    <Badge label={p.daysLeft===0?'Today':`${p.daysLeft}d`} color={p.daysLeft<=7?'var(--danger)':p.daysLeft<=14?'var(--warning)':'var(--text-muted)'}/>
+                  </div>
+                ))}
               </div>
+            )
+          }
+        </Card>
+      </div>
+
+      {/* Overdue warning banner */}
+      {overdueProjects.length > 0 && (
+        <Card style={{ marginTop:16, background:'var(--danger-dim)', border:'1px solid #9B1C1C30', padding:'14px 18px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+            <AlertOctagon size={16} color="var(--danger)"/>
+            <span style={{ fontWeight:700, color:'var(--danger)' }}>{overdueProjects.length} overdue project{overdueProjects.length!==1?'s':''}</span>
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {overdueProjects.map(p => (
+              <span key={p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ fontSize:12, padding:'4px 10px', borderRadius:6, background:'#fff', border:'1px solid #9B1C1C30', color:'var(--danger)', fontWeight:600, cursor:'pointer' }}>
+                {p.name}
+              </span>
             ))}
           </div>
         </Card>
-
-        {/* In demand */}
-        <Card style={{ padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--danger-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><AlertOctagon size={14} color="var(--danger)" /></div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--danger)' }}>Continued High Demand</div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Stacks needed for projects &lt;50% done</div>
-            </div>
-          </div>
-          {inDemand.length === 0 && <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>No long-running demand detected.</div>}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {inDemand.map((d, i) => (
-              <div key={i} style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--danger-dim)', border: '1px solid #A01C1C18' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--danger)' }}>{d.tech}</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', }}>~{d.monthsNeeded}mo ahead</span>
-                </div>
-                <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>Needed for {d.projects.length} project{d.projects.length > 1 ? 's' : ''}</div>
-                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                  {d.projects.map(p => (
-                    <span key={p.id} style={{ fontSize: 14, padding: '2px 7px', borderRadius: 8, border: `1px solid ${p.color}30`, background: `${p.color}10`, color: p.color }}>
-                      {p.name.split(' ').slice(0,2).join(' ')}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 12, padding: '8px 10px', borderRadius: 8, background: 'var(--warning-dim)', border: '1px solid #92520A18', fontSize: 14, color: 'var(--warning)', lineHeight: 1.7 }}>
-            <strong>Hiring Signal:</strong> Consider onboarding or upskilling for high-demand stacks before new projects begin.
-          </div>
-        </Card>
-      </div>
+      )}
     </div>
   );
 }
