@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+
 // ─── Card ────────────────────────────────────────────────────────
 export function Card({ children, style = {}, hover, onClick }) {
   return (
@@ -14,28 +16,36 @@ export function Card({ children, style = {}, hover, onClick }) {
 }
 
 // ─── Modal ───────────────────────────────────────────────────────
+// Rendered via a portal into document.body — this guarantees the
+// `position: fixed` overlay is always relative to the real browser
+// viewport, never to an ancestor page wrapper. Without the portal,
+// any ancestor with a CSS `transform` (including a `.fade-in`
+// entrance animation left in a `translateY(...)` end-state instead
+// of `none`) silently turns `fixed` into `absolute`-like behaviour
+// relative to that ancestor, which is what clipped the modal header.
 export function Modal({ title, subtitle, onClose, children, footer, width = 560 }) {
-  return (
+  return createPortal(
     <div style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(17,24,39,0.45)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
       onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
       <div className="scale-in" style={{ background:'var(--bg-card)', borderRadius:14, width:'100%', maxWidth:width, maxHeight:'90vh', display:'flex', flexDirection:'column', boxShadow:'var(--shadow-lg)', border:'1px solid var(--border)' }}>
-        <div style={{ padding:'0 22px', height:54, background:'#1B2E6B', borderRadius:'14px 14px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ padding:'0 22px', height:54, background:'#1B2E6B', borderRadius:'14px 14px 0 0', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
           <div>
             <h2 style={{ fontFamily:'var(--font-display)', fontSize:16, fontWeight:700, color:'#fff', letterSpacing:'-0.1px' }}>{title}</h2>
             {subtitle && <p style={{ fontSize:12, color:'rgba(168,206,236,0.75)', marginTop:2 }}>{subtitle}</p>}
           </div>
-          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.12)', border:'none', width:26, height:26, borderRadius:6, color:'#fff', cursor:'pointer', fontSize:17, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
+          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.12)', border:'none', width:26, height:26, borderRadius:6, color:'#fff', cursor:'pointer', fontSize:17, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
         </div>
         <div style={{ flex:1, overflow:'auto', padding:'18px 22px' }}>{children}</div>
-        {footer && <div style={{ padding:'13px 22px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:8 }}>{footer}</div>}
+        {footer && <div style={{ padding:'13px 22px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:8, flexShrink:0 }}>{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 // ─── ConfirmModal ────────────────────────────────────────────────
 export function ConfirmModal({ message, onConfirm, onCancel, danger = true }) {
-  return (
+  return createPortal(
     <div style={{ position:'fixed', inset:0, zIndex:300, background:'rgba(17,24,39,0.5)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div className="scale-in" style={{ background:'var(--bg-card)', borderRadius:13, overflow:'hidden', maxWidth:360, width:'100%', boxShadow:'var(--shadow-lg)', margin:20 }}>
         <div style={{ background:'#1B2E6B', padding:'14px 20px' }}>
@@ -49,7 +59,8 @@ export function ConfirmModal({ message, onConfirm, onCancel, danger = true }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -163,10 +174,6 @@ export function TD({ children, style }) {
 }
 
 // ─── Page Header ─────────────────────────────────────────────────
-// NOTE: title intentionally removed — the Topbar already shows the
-// current page's name, so repeating it here caused a duplicate
-// heading on every page. This now only renders the description
-// line and any action button, with the same bottom border/spacing.
 export function PageHeader({ sub, action }) {
   return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, paddingBottom:14, borderBottom:'2px solid #2E6DB4', minHeight: sub ? 'auto' : 24 }}>
@@ -203,7 +210,6 @@ export function ActionMenu({ onEdit, onDelete }) {
 
 // ─── Currency Formatting ─────────────────────────────────────────
 
-/* Core formatter — accepts a currency object from API/context */
 export function formatAmount(value, currency) {
   if (!value && value !== 0) return '—';
   const num = Number(value);
@@ -228,12 +234,10 @@ export function formatAmount(value, currency) {
     : `${symbol}${formatted}`;
 }
 
-/* Legacy fallback — used when no currency in context yet */
 export function formatCurrency(value) {
   return formatAmount(value, { symbol: '₹', symbolPosition: 'prefix', useLakhSystem: true });
 }
 
-/* Date helper */
 export function formatDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
