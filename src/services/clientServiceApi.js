@@ -30,10 +30,13 @@ function toSnake(cs) {
     name:            cs.name,
     contract_type:   cs.contractType,
     monthly_amount:  parseFloat(cs.monthlyAmount) || 0,
+    currency_id:     cs.currencyId ? parseInt(cs.currencyId) : null,
     billing_cycle:   cs.billingCycle,
+    payment_method:  cs.paymentMethod || null,
     status:          cs.status,
     start_date:      cs.startDate,
-    renewal_date:    cs.renewalDate,
+    renewal_date:    cs.renewalDate || null,
+    reporting_day:   cs.reportingDay ? parseInt(cs.reportingDay) : null,
     notes:           cs.notes,
   };
 }

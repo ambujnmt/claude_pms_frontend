@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, PageHeader, Table, TR, TD, Badge, StatusBadge, ActionMenu, Modal, Field, inputStyle, Btn, ConfirmModal, formatDate, EmptyState } from '../components/UI';
+import { Card, PageHeader, Table, TR, TD, Badge, StatusBadge, ActionMenu, Modal, Field, inputStyle, Btn, ConfirmModal, formatDate, EmptyState, formatAmount } from '../components/UI';
 import { Plus, Wrench, TrendingUp, Users, AlertCircle } from 'lucide-react';
 import clientServiceApi from '../services/clientServiceApi';
 
 const CONTRACT_TYPES = ['Development Maintenance','SEO','PPC Management','Social Media','Hosting & Support','Content Marketing','UI/UX Retainer','AI/ML Maintenance','Other'];
 const BILLING_CYCLES = ['monthly','quarterly','annual'];
 const STATUS_OPTS    = ['active','paused','cancelled'];
+const PAYMENT_METHODS = ['Bank Transfer','PayPal','Stripe','Credit Card','Wire Transfer','Cheque','Other'];
 
 const TYPE_COLOR = {
   'SEO':                    '#1A6B3C',
@@ -21,11 +22,11 @@ const TYPE_COLOR = {
   'Other':                  '#6B7A99',
 };
 
-const EMPTY = { clientId:'', serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', billingCycle:'monthly', startDate:'', renewalDate:'', status:'active', notes:'' };
+const EMPTY = { clientId:'', serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', startDate:'', renewalDate:'', reportingDay:'', status:'active', notes:'' };
 
 export default function MaintenancePage() {
   const navigate = useNavigate();
-  const { clients, clientServices, setClientServices, serviceTypes, isManagement, isBD , fmt } = useApp();
+  const { clients, clientServices, setClientServices, serviceTypes, currencies, activeCurrency, isManagement, isBD , fmt } = useApp();
 
   const [tab, setTab]             = useState('all');
   const [search, setSearch]       = useState('');
@@ -88,7 +89,7 @@ export default function MaintenancePage() {
 
   const openAdd  = () => { setForm(EMPTY); setEditing(null); setErrors({}); setShowModal(true); };
   const openEdit = (cs) => {
-    setForm({ clientId: cs.clientId, serviceId: cs.serviceId||'', name: cs.name, contractType: cs.contractType||'Other', monthlyAmount: cs.monthlyAmount, billingCycle: cs.billingCycle||'monthly', startDate: cs.startDate||'', renewalDate: cs.renewalDate||'', status: cs.status, notes: cs.notes||'' });
+    setForm({ clientId: cs.clientId, serviceId: cs.serviceId||'', name: cs.name, contractType: cs.contractType||'Other', monthlyAmount: cs.monthlyAmount, currencyId: cs.currencyId||'', billingCycle: cs.billingCycle||'monthly', paymentMethod: cs.paymentMethod||'', startDate: cs.startDate||'', renewalDate: cs.renewalDate||'', reportingDay: cs.reportingDay||'', status: cs.status, notes: cs.notes||'' });
     setEditing(cs.id); setErrors({}); setShowModal(true);
   };
 
@@ -167,9 +168,9 @@ export default function MaintenancePage() {
         {loading
           ? <div style={{ padding:28, textAlign:'center', color:'var(--text-muted)', fontSize:14 }}>Loading contracts…</div>
           : (
-            <Table headers={['Client','Contract Name','Type','Monthly','Billing','Start Date','Renewal','Status','Notes', canEdit?'Actions':'']}>
+            <Table headers={['Client','Contract Name','Type','Monthly','Billing','Payment','Start Date','Renewal','Reporting Day','Status','Notes', canEdit?'Actions':'']}>
               {filtered.length === 0 && (
-                <TR><td colSpan={10} style={{ padding:28, textAlign:'center', color:'var(--text-muted)', fontSize:14 }}>
+                <TR><td colSpan={12} style={{ padding:28, textAlign:'center', color:'var(--text-muted)', fontSize:14 }}>
                   No contracts found. {canEdit && <span style={{ color:'#2E6DB4', cursor:'pointer', fontWeight:600 }} onClick={openAdd}>Add one →</span>}
                 </td></TR>
               )}
@@ -184,10 +185,12 @@ export default function MaintenancePage() {
                     </TD>
                     <TD><span style={{ fontWeight:500 }}>{cs.name}</span></TD>
                     <TD><Badge label={cs.contractType||'Other'} color={tcolor}/></TD>
-                    <TD><span style={{ fontWeight:700, color:'var(--success)' }}>{fmt(cs.monthlyAmount)}</span></TD>
+                    <TD><span style={{ fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}</span></TD>
                     <TD><span style={{ color:'var(--text-muted)', textTransform:'capitalize' }}>{cs.billingCycle}</span></TD>
+                    <TD><span style={{ color:'var(--text-muted)' }}>{cs.paymentMethod || '—'}</span></TD>
                     <TD><span style={{ color:'var(--text-muted)' }}>{formatDate(cs.startDate)}</span></TD>
                     <TD><span style={{ color:'var(--text-muted)' }}>{formatDate(cs.renewalDate)||'—'}</span></TD>
+                    <TD><span style={{ color:'var(--text-muted)' }}>{cs.reportingDay ? `${cs.reportingDay} of month` : '—'}</span></TD>
                     <TD><StatusBadge status={cs.status}/></TD>
                     <TD><span style={{ color:'var(--text-muted)', fontSize:14 }}>{cs.notes||'—'}</span></TD>
                     {canEdit && <TD><ActionMenu onEdit={() => openEdit(cs)} onDelete={() => setConfirmDel(cs.id)}/></TD>}
@@ -248,12 +251,26 @@ export default function MaintenancePage() {
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="Monthly Amount (₹)" required error={errors.monthlyAmount}>
+              <Field label="Monthly Amount" required error={errors.monthlyAmount}>
                 <input type="number" value={form.monthlyAmount} onChange={e => set('monthlyAmount', e.target.value)} placeholder="e.g. 15000" style={inputStyle(errors.monthlyAmount)}/>
+              </Field>
+              <Field label="Currency">
+                <select value={form.currencyId} onChange={e => set('currencyId', e.target.value)} style={inputStyle()}>
+                  <option value="">Default ({activeCurrency?.code})</option>
+                  {currencies.map(c => <option key={c.id} value={c.id}>{c.code} ({c.symbol})</option>)}
+                </select>
               </Field>
               <Field label="Billing Cycle">
                 <select value={form.billingCycle} onChange={e => set('billingCycle', e.target.value)} style={inputStyle()}>
                   {BILLING_CYCLES.map(b => <option key={b} value={b} style={{ textTransform:'capitalize' }}>{b}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Payment Method">
+                <select value={form.paymentMethod} onChange={e => set('paymentMethod', e.target.value)} style={inputStyle()}>
+                  <option value="">Select…</option>
+                  {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
                 </select>
               </Field>
               <Field label="Status">
@@ -262,12 +279,15 @@ export default function MaintenancePage() {
                 </select>
               </Field>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <Field label="Start Date" required error={errors.startDate}>
                 <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} style={inputStyle(errors.startDate)}/>
               </Field>
               <Field label="Renewal Date">
                 <input type="date" value={form.renewalDate} onChange={e => set('renewalDate', e.target.value)} style={inputStyle()}/>
+              </Field>
+              <Field label="Monthly Reporting Day">
+                <input type="number" min={1} max={31} value={form.reportingDay} onChange={e => set('reportingDay', e.target.value)} placeholder="e.g. 5" style={inputStyle()}/>
               </Field>
             </div>
             <Field label="Notes">

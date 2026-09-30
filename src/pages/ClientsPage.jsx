@@ -5,11 +5,11 @@ import {
   Card, Badge, StatusBadge, Btn, Modal, Field, inputStyle,
   ConfirmModal, formatDate, PageHeader, EmptyState,
 } from '../components/UI';
-import { Search, MapPin, Mail, Phone, Building2, Plus } from 'lucide-react';
+import { Search, MapPin, Mail, Phone, Building2, Globe, Plus } from 'lucide-react';
 import clientService from '../services/clientService';
 
 const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Real Estate','HR Tech','Manufacturing','Education','Other'];
-const EMPTY_FORM = { name:'', contactPerson:'', email:'', phone:'', city:'', industry:'', status:'active', notes:'' };
+const EMPTY_FORM = { name:'', contactPerson:'', email:'', website:'', phone:'', city:'', industry:'', status:'active', notes:'' };
 
 export default function ClientsPage() {
   const { clients, setClients, projects, clientServices, fmt, isManagement, isBD, dataLoading } = useApp();
@@ -46,7 +46,7 @@ export default function ClientsPage() {
   const openAdd = () => { setForm(EMPTY_FORM); setEditing(null); setErrors({}); setShowModal(true); };
   const openEdit = (e, client) => {
     e.stopPropagation();
-    setForm({ name:client.name||'', contactPerson:client.contactPerson||'', email:client.email||'', phone:client.phone||'', city:client.city||'', industry:client.industry||'', status:client.status||'active', notes:client.notes||'' });
+    setForm({ name:client.name||'', contactPerson:client.contactPerson||'', email:client.email||'', website:client.website||'', phone:client.phone||'', city:client.city||'', industry:client.industry||'', status:client.status||'active', notes:client.notes||'' });
     setEditing(client.id); setErrors({}); setShowModal(true);
   };
 
@@ -138,6 +138,13 @@ export default function ClientsPage() {
                   {client.city         && <Row icon={MapPin}>{client.city}</Row>}
                   {client.email        && <Row icon={Mail}>{client.email}</Row>}
                   {client.phone        && <Row icon={Phone}>{client.phone}</Row>}
+                  {client.website      && (
+                    <Row icon={Globe}>
+                      <a href={client.website} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color:'#2E6DB4', textDecoration:'none' }}>
+                        {client.website.replace(/^https?:\/\//,'')}
+                      </a>
+                    </Row>
+                  )}
                 </div>
 
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap', paddingTop:10, borderTop:'1px solid var(--border)', marginBottom:10 }}>
@@ -174,6 +181,9 @@ export default function ClientsPage() {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <Field label="Email"><input type="email" value={form.email} onChange={e => set('email',e.target.value)} style={inputStyle()}/></Field>
               <Field label="Phone"><input value={form.phone} onChange={e => set('phone',e.target.value)} style={inputStyle()}/></Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
+              <Field label="Website"><input type="url" placeholder="https://example.com" value={form.website} onChange={e => set('website',e.target.value)} style={inputStyle()}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <Field label="City"><input value={form.city} onChange={e => set('city',e.target.value)} style={inputStyle()}/></Field>

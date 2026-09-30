@@ -39,6 +39,7 @@ function toSnake(c) {
     name:           c.name,
     contact_person: c.contactPerson || null,
     email:          c.email         || null,
+    website:        c.website       || null,
     phone:          c.phone         || null,
     city:           c.city          || null,
     industry:       c.industry      || null,

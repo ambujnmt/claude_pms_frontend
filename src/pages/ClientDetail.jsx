@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import {
   Card, Badge, StatusBadge, ProgressBar, Btn, Modal, Field,
   inputStyle, ConfirmModal, ActionMenu, formatDate, EmptyState, SectionTitle,
+  formatAmount,
 } from '../components/UI';
 import {
   ArrowLeft, Building2, Mail, Phone, MapPin, Globe,
@@ -22,6 +23,7 @@ const TABS = [
 const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Real Estate','HR Tech','Manufacturing','Education','Other'];
 const CONTRACT_TYPES = ['Development Maintenance','SEO','PPC Management','Social Media','Hosting & Support','Content Marketing','UI/UX Retainer','AI/ML Maintenance','Other'];
 const BILLING_CYCLES = ['monthly','quarterly','annual'];
+const PAYMENT_METHODS = ['Bank Transfer','PayPal','Stripe','Credit Card','Wire Transfer','Cheque','Other'];
 
 export default function ClientDetail() {
   const { id }     = useParams();
@@ -32,6 +34,7 @@ export default function ClientDetail() {
     clientServices, setClientServices,
     hostingProjects,
     serviceTypes,
+    currencies, activeCurrency,
     fmt,
     isManagement, isBD,
   } = useApp();
@@ -99,6 +102,7 @@ export default function ClientDetail() {
       name:          client.name          || '',
       contactPerson: client.contactPerson || '',
       email:         client.email         || '',
+      website:       client.website       || '',
       phone:         client.phone         || '',
       city:          client.city          || '',
       industry:      client.industry      || '',
@@ -126,7 +130,7 @@ export default function ClientDetail() {
   };
 
   /* ── Services CRUD ───────────────────────────────────── */
-  const EMPTY_SVC = { serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', billingCycle:'monthly', status:'active', startDate:'', renewalDate:'', notes:'' };
+  const EMPTY_SVC = { serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', status:'active', startDate:'', renewalDate:'', reportingDay:'', notes:'' };
 
   const openAddSvc = () => {
     setSvcForm({ ...EMPTY_SVC, clientId: client.id });
@@ -140,10 +144,13 @@ export default function ClientDetail() {
       name:          cs.name          || '',
       contractType:  cs.contractType  || 'Other',
       monthlyAmount: cs.monthlyAmount || '',
+      currencyId:    cs.currencyId    || '',
       billingCycle:  cs.billingCycle  || 'monthly',
+      paymentMethod: cs.paymentMethod || '',
       status:        cs.status        || 'active',
       startDate:     cs.startDate     || '',
       renewalDate:   cs.renewalDate   || '',
+      reportingDay:  cs.reportingDay  || '',
       notes:         cs.notes         || '',
     });
     setSvcEditing(cs.id); setSvcErrors({}); setShowSvcModal(true);
@@ -273,6 +280,17 @@ export default function ClientDetail() {
                   </div>
                 </div>
               ) : null)}
+              {client.website && (
+                <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+                  <div style={{ width:30, height:30, borderRadius:7, background:'var(--bg-elevated)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <Globe size={13} color="var(--text-muted)"/>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', fontWeight:600 }}>Website</div>
+                    <a href={client.website} target="_blank" rel="noreferrer" style={{ fontSize:14, color:'#2E6DB4', marginTop:2, display:'block' }}>{client.website}</a>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -364,10 +382,12 @@ export default function ClientDetail() {
                         <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
                           {cs.contractType} · {cs.billingCycle} billing
                           {cs.startDate ? ` · Started ${formatDate(cs.startDate)}` : ''}
+                          {cs.paymentMethod ? ` · ${cs.paymentMethod}` : ''}
+                          {cs.reportingDay ? ` · Reports on the ${cs.reportingDay}${ordinalSuffix(cs.reportingDay)} of every month` : ''}
                         </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
-                        <span style={{ fontSize:18, fontWeight:700, color:'var(--success)' }}>{fmt(cs.monthlyAmount)}<span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)' }}>/mo</span></span>
+                        <span style={{ fontSize:18, fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}<span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)' }}>/mo</span></span>
                         <StatusBadge status={cs.status}/>
                       </div>
                       {canEdit && (
@@ -494,12 +514,26 @@ export default function ClientDetail() {
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="Monthly Amount (₹)" required error={svcErrors.monthlyAmount}>
+              <Field label="Monthly Amount" required error={svcErrors.monthlyAmount}>
                 <input type="number" value={svcForm.monthlyAmount||''} onChange={e => setSvcForm(f=>({...f,monthlyAmount:e.target.value}))} placeholder="15000" style={inputStyle(svcErrors.monthlyAmount)}/>
+              </Field>
+              <Field label="Currency">
+                <select value={svcForm.currencyId||''} onChange={e => setSvcForm(f=>({...f,currencyId:e.target.value}))} style={inputStyle()}>
+                  <option value="">Default ({activeCurrency?.code})</option>
+                  {currencies.map(c => <option key={c.id} value={c.id}>{c.code} ({c.symbol})</option>)}
+                </select>
               </Field>
               <Field label="Billing Cycle">
                 <select value={svcForm.billingCycle||'monthly'} onChange={e => setSvcForm(f=>({...f,billingCycle:e.target.value}))} style={inputStyle()}>
                   {BILLING_CYCLES.map(b => <option key={b} value={b} style={{textTransform:'capitalize'}}>{b}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Payment Method">
+                <select value={svcForm.paymentMethod||''} onChange={e => setSvcForm(f=>({...f,paymentMethod:e.target.value}))} style={inputStyle()}>
+                  <option value="">Select…</option>
+                  {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
                 </select>
               </Field>
               <Field label="Status">
@@ -510,12 +544,15 @@ export default function ClientDetail() {
                 </select>
               </Field>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <Field label="Start Date">
                 <input type="date" value={svcForm.startDate||''} onChange={e => setSvcForm(f=>({...f,startDate:e.target.value}))} style={inputStyle()}/>
               </Field>
               <Field label="Renewal Date">
                 <input type="date" value={svcForm.renewalDate||''} onChange={e => setSvcForm(f=>({...f,renewalDate:e.target.value}))} style={inputStyle()}/>
+              </Field>
+              <Field label="Monthly Reporting Day">
+                <input type="number" min={1} max={31} value={svcForm.reportingDay||''} onChange={e => setSvcForm(f=>({...f,reportingDay:e.target.value}))} placeholder="e.g. 5" style={inputStyle()}/>
               </Field>
             </div>
             <Field label="Notes">
@@ -530,4 +567,13 @@ export default function ClientDetail() {
       )}
     </div>
   );
+}
+
+function ordinalSuffix(day) {
+  const n = parseInt(day);
+  if (isNaN(n)) return '';
+  if (n % 10 === 1 && n !== 11) return 'st';
+  if (n % 10 === 2 && n !== 12) return 'nd';
+  if (n % 10 === 3 && n !== 13) return 'rd';
+  return 'th';
 }
