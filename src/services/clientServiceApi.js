@@ -8,6 +8,11 @@ const clientServiceApi = {
     return data.data;
   },
 
+  getById: async (id) => {
+    const { data } = await api.get(`/client-services/${id}`);
+    return data.data;
+  },
+
   create: async (payload) => {
     const { data } = await api.post('/client-services', toSnake(payload));
     return data.data;
@@ -26,6 +31,8 @@ const clientServiceApi = {
 function toSnake(cs) {
   return {
     client_id:       cs.clientId ? parseInt(cs.clientId) : undefined,
+    bd_owner_id:     cs.bdOwner ? parseInt(cs.bdOwner) : null,
+    resources:       (cs.resources || []).map(id => parseInt(id)),
     service_type_id: cs.serviceId ? parseInt(cs.serviceId) : null,
     name:            cs.name,
     contract_type:   cs.contractType,

@@ -20,7 +20,8 @@ export default function Topbar() {
   const { user, logout, projects } = useApp();
   const loc    = useLocation();
   const title  = TITLES[loc.pathname]
-    || (loc.pathname.startsWith('/clients/') ? 'Client Detail' : 'Project Detail');
+    || (loc.pathname.startsWith('/clients/') ? 'Client Detail'
+    : loc.pathname.startsWith('/maintenance/') ? 'Maintenance Detail' : 'Project Detail');
   const today  = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const urgent = projects.filter(p => p.blockers?.some(b => !b.resolved)).length;
 

@@ -4,8 +4,9 @@ import { useApp } from '../context/AppContext';
 import {
   Card, Badge, StatusBadge, ProgressBar, Btn, Modal, Field,
   inputStyle, ConfirmModal, ActionMenu, formatDate, EmptyState, SectionTitle,
-  formatAmount,
+  formatAmount, calcRenewalDate,
 } from '../components/UI';
+import UserMultiSelect from '../components/UserMultiSelect';
 import {
   ArrowLeft, Building2, Mail, Phone, MapPin, Globe,
   FolderKanban, Wrench, Server, Edit2, Plus, Trash2,
@@ -23,6 +24,7 @@ const TABS = [
 const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Real Estate','HR Tech','Manufacturing','Education','Other'];
 const CONTRACT_TYPES = ['Development Maintenance','SEO','PPC Management','Social Media','Hosting & Support','Content Marketing','UI/UX Retainer','AI/ML Maintenance','Other'];
 const BILLING_CYCLES = ['monthly','quarterly','annual'];
+const BD_ROLES = ['bd', 'management', 'super_admin'];
 const PAYMENT_METHODS = ['Bank Transfer','PayPal','Stripe','Credit Card','Wire Transfer','Cheque','Other'];
 
 export default function ClientDetail() {
@@ -34,7 +36,7 @@ export default function ClientDetail() {
     clientServices, setClientServices,
     hostingProjects,
     serviceTypes,
-    currencies, activeCurrency,
+    currencies, activeCurrency, users,
     fmt,
     isManagement, isBD,
   } = useApp();
@@ -130,7 +132,7 @@ export default function ClientDetail() {
   };
 
   /* ── Services CRUD ───────────────────────────────────── */
-  const EMPTY_SVC = { serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', status:'active', startDate:'', renewalDate:'', reportingDay:'', notes:'' };
+  const EMPTY_SVC = { bdOwner:'', resources:[], serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', status:'active', startDate:'', renewalDate:'', reportingDay:'', notes:'' };
 
   const openAddSvc = () => {
     setSvcForm({ ...EMPTY_SVC, clientId: client.id });
@@ -140,6 +142,8 @@ export default function ClientDetail() {
   const openEditSvc = (cs) => {
     setSvcForm({
       clientId:      client.id,
+      bdOwner:       cs.bdOwner       || '',
+      resources:     cs.resourceIds   || [],
       serviceId:     cs.serviceId     || '',
       name:          cs.name          || '',
       contractType:  cs.contractType  || 'Other',
@@ -373,7 +377,7 @@ export default function ClientDetail() {
                 {clientSvcs.map(cs => {
                   const svc = serviceTypes.find(s => s.id === cs.serviceId || s.id === parseInt(cs.serviceId));
                   return (
-                    <Card key={cs.id} style={{ display:'flex', alignItems:'center', gap:14 }}>
+                    <Card key={cs.id} hover onClick={() => navigate(`/maintenance/${cs.id}`)} style={{ display:'flex', alignItems:'center', gap:14 }}>
                       <div style={{ width:40, height:40, borderRadius:9, background:'var(--bg-elevated)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
                         {svc?.icon || '🔧'}
                       </div>
@@ -524,7 +528,7 @@ export default function ClientDetail() {
                 </select>
               </Field>
               <Field label="Billing Cycle">
-                <select value={svcForm.billingCycle||'monthly'} onChange={e => setSvcForm(f=>({...f,billingCycle:e.target.value}))} style={inputStyle()}>
+                <select value={svcForm.billingCycle||'monthly'} onChange={e => setSvcForm(f=>({...f,billingCycle:e.target.value,renewalDate:f.startDate?calcRenewalDate(f.startDate,e.target.value):f.renewalDate}))} style={inputStyle()}>
                   {BILLING_CYCLES.map(b => <option key={b} value={b} style={{textTransform:'capitalize'}}>{b}</option>)}
                 </select>
               </Field>
@@ -546,15 +550,24 @@ export default function ClientDetail() {
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <Field label="Start Date">
-                <input type="date" value={svcForm.startDate||''} onChange={e => setSvcForm(f=>({...f,startDate:e.target.value}))} style={inputStyle()}/>
+                <input type="date" value={svcForm.startDate||''} onChange={e => setSvcForm(f=>({...f,startDate:e.target.value,renewalDate:calcRenewalDate(e.target.value,f.billingCycle||'monthly')}))} style={inputStyle()}/>
               </Field>
-              <Field label="Renewal Date">
+              <Field label="Renewal Date (auto)">
                 <input type="date" value={svcForm.renewalDate||''} onChange={e => setSvcForm(f=>({...f,renewalDate:e.target.value}))} style={inputStyle()}/>
               </Field>
               <Field label="Monthly Reporting Day">
                 <input type="number" min={1} max={31} value={svcForm.reportingDay||''} onChange={e => setSvcForm(f=>({...f,reportingDay:e.target.value}))} placeholder="e.g. 5" style={inputStyle()}/>
               </Field>
             </div>
+            <Field label="BD Owner">
+              <select value={svcForm.bdOwner||''} onChange={e => setSvcForm(f=>({...f,bdOwner:e.target.value}))} style={inputStyle()}>
+                <option value="">Unassigned</option>
+                {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Resources (developers, designers, SEO, QA, etc.)">
+              <UserMultiSelect users={users} value={svcForm.resources||[]} onChange={v => setSvcForm(f=>({...f,resources:v}))} placeholder="Search team members to assign…"/>
+            </Field>
             <Field label="Notes">
               <textarea value={svcForm.notes||''} onChange={e => setSvcForm(f=>({...f,notes:e.target.value}))} rows={2} style={{...inputStyle(), resize:'vertical'}} placeholder="Scope details, SLA…"/>
             </Field>

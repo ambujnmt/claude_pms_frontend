@@ -14,6 +14,7 @@ import CategoryPage        from './pages/CategoryPage';
 import HostingPage         from './pages/HostingPage';
 import ServicesPage        from './pages/ServicesPage';
 import MaintenancePage     from './pages/MaintenancePage';
+import MaintenanceDetail   from './pages/MaintenanceDetail';
 import CurrenciesPage      from './pages/CurrenciesPage';
 import TeamPage            from './pages/TeamPage';
 
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="hosting"          element={<HostingPage />} />
               <Route path="services"         element={<ServicesPage />} />
               <Route path="maintenance"      element={<MaintenancePage />} />
+              <Route path="maintenance/:id"  element={<MaintenanceDetail />} />
               <Route path="currencies"       element={<CurrenciesPage />} />
               <Route path="*" element={<Navigate to="/" />} />
             </Route>

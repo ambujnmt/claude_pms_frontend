@@ -234,6 +234,22 @@ export function formatAmount(value, currency) {
     : `${symbol}${formatted}`;
 }
 
+// Renewal date = start date + one billing cycle (monthly +1, quarterly +3, annual +12 months).
+// Works on the YYYY-MM-DD string directly (no timezone drift) and clamps to month end
+// (e.g. 31 Jan + 1 month = 28/29 Feb).
+export function calcRenewalDate(startDate, billingCycle) {
+  if (!startDate) return '';
+  const months = { monthly: 1, quarterly: 3, annual: 12, yearly: 12 }[billingCycle] || 1;
+  const [y, m, d] = startDate.split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const total = (m - 1) + months;
+  const ny = y + Math.floor(total / 12);
+  const nm = total % 12;
+  const lastDay = new Date(ny, nm + 1, 0).getDate();
+  const nd = Math.min(d, lastDay);
+  return `${ny}-${String(nm + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
+}
+
 export function formatCurrency(value) {
   return formatAmount(value, { symbol: '₹', symbolPosition: 'prefix', useLakhSystem: true });
 }

@@ -51,6 +51,31 @@ export default function Dashboard() {
   /* ── Client stats ──────────────────────────────────────────── */
   const activeServicesCount = clientServices.filter(cs => cs.status === 'active').length;
 
+  /* ── Active work by service type: DND / PPC / SEO ──────────────────
+     Counts BOTH active projects (grouped by category) and active recurring
+     contracts (grouped by contract type), so Design & Development projects
+     (Website, Mobile App, AI/ML...) land under DND.
+       SEO  = category/contract containing "seo"
+       PPC  = ppc / ads / social media / content marketing
+       DND  = everything else on projects, plus development & AI/ML maintenance */
+  const groupOf = (text, isContract) => {
+    const t = (text || '').toLowerCase();
+    if (t.includes('seo')) return 'SEO';
+    if (['ppc', 'ads', 'social media', 'content marketing'].some(x => t.includes(x))) return 'PPC';
+    if (!isContract) return 'DND';
+    if (t.includes('development') || t.includes('ai/ml')) return 'DND';
+    return 'Other';
+  };
+  const activeByType = { DND: 0, PPC: 0, SEO: 0, Other: 0 };
+  projects.filter(p => p.status === 'active').forEach(p => { activeByType[groupOf(p.category, false)]++; });
+  clientServices.filter(cs => cs.status === 'active').forEach(cs => { activeByType[groupOf(cs.contractType, true)]++; });
+  const breakdown = [
+    { label: 'DND', value: activeByType.DND, color: NAVY },
+    { label: 'PPC', value: activeByType.PPC, color: BLUE },
+    { label: 'SEO', value: activeByType.SEO, color: 'var(--success)' },
+  ];
+  const otherActive = activeByType.Other;
+
   /* ── Category distribution ────────────────────────────────── */
   const categoryData = useMemo(() =>
     categories.map(c => ({ name: c.name, value: projects.filter(p => p.category === c.name).length, color: c.color }))
@@ -78,7 +103,7 @@ export default function Dashboard() {
 
       {/* ── KPI cards (clickable) ───────────────────────────────── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
-        <KpiCard icon={<FolderKanban size={17}/>}  label="Active Projects" value={active}              sub={`${completed} completed`}                                              accent={NAVY} light="#EEF2FA" to="/projects"    navigate={navigate}/>
+        <KpiCard icon={<FolderKanban size={17}/>}  label="Active Projects" value={active}              sub={`${completed} projects completed`} breakdown={breakdown} breakdownNote={otherActive ? `+${otherActive} other active contract${otherActive!==1?'s':''}` : null} accent={NAVY} light="#EEF2FA" to="/projects"    navigate={navigate}/>
         <KpiCard icon={<TrendingUp size={17}/>}    label="Avg Completion"  value={`${avgCompletion}%`}  sub="across active projects"                                                accent={BLUE} light="#EDF4FB" to="/milestones"  navigate={navigate}/>
         <KpiCard icon={<Users size={17}/>}         label="Total Clients"   value={clients.length}       sub={`${activeServicesCount} active service${activeServicesCount!==1?'s':''}`} accent={SKY}  light="#EBF4FA" to="/clients"     navigate={navigate}/>
         <KpiCard icon={<AlertTriangle size={17}/>} label="Open Blockers"   value={blockers.length}      sub="needing attention"                                                     accent={blockers.length?'var(--danger)':BLUE} light={blockers.length?'#FEF2F2':'#EDF4FB'} to="/projects" navigate={navigate}/>
@@ -224,7 +249,7 @@ export default function Dashboard() {
   );
 }
 
-function KpiCard({ icon, label, value, sub, accent, light, to, navigate }) {
+function KpiCard({ icon, label, value, sub, accent, light, to, navigate, breakdown, breakdownNote }) {
   return (
     <Card
       hover
@@ -238,8 +263,26 @@ function KpiCard({ icon, label, value, sub, accent, light, to, navigate }) {
         </div>
         <span style={{ fontSize:14, color:accent, opacity:0.5, fontWeight:500 }}>→</span>
       </div>
-      <div style={{ fontFamily:'var(--font-body)', fontSize:32, fontWeight:700, color:accent, letterSpacing:'-0.5px', lineHeight:1 }}>{value}</div>
-      <div style={{ fontSize:14, color:'var(--text-muted)', marginTop:4 }}>{sub}</div>
+      {breakdown ? (
+        <>
+          <div style={{ display:'grid', gridTemplateColumns:`repeat(${breakdown.length},1fr)`, gap:6 }}>
+            {breakdown.map(b => (
+              <div key={b.label} style={{ textAlign:'center', padding:'6px 4px', borderRadius:8, background:'var(--bg-elevated)' }}>
+                <div style={{ fontSize:24, fontWeight:700, color:b.color, lineHeight:1 }}>{b.value}</div>
+                <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', marginTop:4, letterSpacing:'0.5px' }}>{b.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:8 }}>
+            {breakdown.reduce((n,b)=>n+b.value,0)} active in total · {sub}{breakdownNote ? ` · ${breakdownNote}` : ''}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontFamily:'var(--font-body)', fontSize:32, fontWeight:700, color:accent, letterSpacing:'-0.5px', lineHeight:1 }}>{value}</div>
+          <div style={{ fontSize:14, color:'var(--text-muted)', marginTop:4 }}>{sub}</div>
+        </>
+      )}
     </Card>
   );
 }

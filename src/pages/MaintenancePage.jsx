@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, PageHeader, Table, TR, TD, Badge, StatusBadge, ActionMenu, Modal, Field, inputStyle, Btn, ConfirmModal, formatDate, EmptyState, formatAmount } from '../components/UI';
+import { Card, PageHeader, Table, TR, TD, Badge, StatusBadge, ActionMenu, Modal, Field, inputStyle, Btn, ConfirmModal, formatDate, EmptyState, formatAmount, calcRenewalDate } from '../components/UI';
+import UserMultiSelect from '../components/UserMultiSelect';
 import { Plus, Wrench, TrendingUp, Users, AlertCircle } from 'lucide-react';
 import clientServiceApi from '../services/clientServiceApi';
 
@@ -22,11 +23,13 @@ const TYPE_COLOR = {
   'Other':                  '#6B7A99',
 };
 
-const EMPTY = { clientId:'', serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', startDate:'', renewalDate:'', reportingDay:'', status:'active', notes:'' };
+const BD_ROLES = ['bd', 'management', 'super_admin'];
+
+const EMPTY = { clientId:'', bdOwner:'', resources:[], serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', startDate:'', renewalDate:'', reportingDay:'', status:'active', notes:'' };
 
 export default function MaintenancePage() {
   const navigate = useNavigate();
-  const { clients, clientServices, setClientServices, serviceTypes, currencies, activeCurrency, isManagement, isBD , fmt } = useApp();
+  const { clients, clientServices, setClientServices, serviceTypes, currencies, activeCurrency, users, isManagement, isBD , fmt } = useApp();
 
   const [tab, setTab]             = useState('all');
   const [search, setSearch]       = useState('');
@@ -55,6 +58,10 @@ export default function MaintenancePage() {
   }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Start date / billing cycle drive the renewal date automatically (field stays editable afterwards)
+  const setStart = (v) => setForm(f => ({ ...f, startDate: v, renewalDate: calcRenewalDate(v, f.billingCycle) }));
+  const setCycle = (v) => setForm(f => ({ ...f, billingCycle: v, renewalDate: f.startDate ? calcRenewalDate(f.startDate, v) : f.renewalDate }));
 
   const tabFilter = (cs) => {
     const type = cs.contractType || '';
@@ -89,7 +96,7 @@ export default function MaintenancePage() {
 
   const openAdd  = () => { setForm(EMPTY); setEditing(null); setErrors({}); setShowModal(true); };
   const openEdit = (cs) => {
-    setForm({ clientId: cs.clientId, serviceId: cs.serviceId||'', name: cs.name, contractType: cs.contractType||'Other', monthlyAmount: cs.monthlyAmount, currencyId: cs.currencyId||'', billingCycle: cs.billingCycle||'monthly', paymentMethod: cs.paymentMethod||'', startDate: cs.startDate||'', renewalDate: cs.renewalDate||'', reportingDay: cs.reportingDay||'', status: cs.status, notes: cs.notes||'' });
+    setForm({ clientId: cs.clientId, bdOwner: cs.bdOwner||'', resources: cs.resourceIds||[], serviceId: cs.serviceId||'', name: cs.name, contractType: cs.contractType||'Other', monthlyAmount: cs.monthlyAmount, currencyId: cs.currencyId||'', billingCycle: cs.billingCycle||'monthly', paymentMethod: cs.paymentMethod||'', startDate: cs.startDate||'', renewalDate: cs.renewalDate||'', reportingDay: cs.reportingDay||'', status: cs.status, notes: cs.notes||'' });
     setEditing(cs.id); setErrors({}); setShowModal(true);
   };
 
@@ -183,7 +190,7 @@ export default function MaintenancePage() {
                       <div style={{ fontWeight:600, color:'#2E6DB4', cursor:'pointer' }} onClick={() => client && navigate(`/clients/${client.id}`)}>{client?.name || '—'}</div>
                       {client?.city && <div style={{ fontSize:14, color:'var(--text-muted)', marginTop:2 }}>{client.city}</div>}
                     </TD>
-                    <TD><span style={{ fontWeight:500 }}>{cs.name}</span></TD>
+                    <TD><span onClick={() => navigate(`/maintenance/${cs.id}`)} style={{ fontWeight:600, color:'#2E6DB4', cursor:'pointer' }}>{cs.name}</span></TD>
                     <TD><Badge label={cs.contractType||'Other'} color={tcolor}/></TD>
                     <TD><span style={{ fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}</span></TD>
                     <TD><span style={{ color:'var(--text-muted)', textTransform:'capitalize' }}>{cs.billingCycle}</span></TD>
@@ -261,7 +268,7 @@ export default function MaintenancePage() {
                 </select>
               </Field>
               <Field label="Billing Cycle">
-                <select value={form.billingCycle} onChange={e => set('billingCycle', e.target.value)} style={inputStyle()}>
+                <select value={form.billingCycle} onChange={e => setCycle(e.target.value)} style={inputStyle()}>
                   {BILLING_CYCLES.map(b => <option key={b} value={b} style={{ textTransform:'capitalize' }}>{b}</option>)}
                 </select>
               </Field>
@@ -281,15 +288,24 @@ export default function MaintenancePage() {
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <Field label="Start Date" required error={errors.startDate}>
-                <input type="date" value={form.startDate} onChange={e => set('startDate', e.target.value)} style={inputStyle(errors.startDate)}/>
+                <input type="date" value={form.startDate} onChange={e => setStart(e.target.value)} style={inputStyle(errors.startDate)}/>
               </Field>
-              <Field label="Renewal Date">
+              <Field label="Renewal Date (auto)">
                 <input type="date" value={form.renewalDate} onChange={e => set('renewalDate', e.target.value)} style={inputStyle()}/>
               </Field>
               <Field label="Monthly Reporting Day">
                 <input type="number" min={1} max={31} value={form.reportingDay} onChange={e => set('reportingDay', e.target.value)} placeholder="e.g. 5" style={inputStyle()}/>
               </Field>
             </div>
+            <Field label="BD Owner">
+              <select value={form.bdOwner} onChange={e => set('bdOwner', e.target.value)} style={inputStyle()}>
+                <option value="">Unassigned</option>
+                {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Resources (developers, designers, SEO, QA, etc.)">
+              <UserMultiSelect users={users} value={form.resources||[]} onChange={v => set('resources', v)} placeholder="Search team members to assign…"/>
+            </Field>
             <Field label="Notes">
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Scope, SLA details…" style={{ ...inputStyle(), resize:'vertical' }}/>
             </Field>
