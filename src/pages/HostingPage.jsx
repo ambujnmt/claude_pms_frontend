@@ -11,7 +11,7 @@ const STATUS_OPTS= ['active','due-soon','overdue'];
 const EMPTY      = { clientId:'', clientName:'', domain:'', plan:'Business', server:'AWS Mumbai', renewalDate:'', annualAmount:'', status:'active', addons:[], contactEmail:'' };
 
 export default function HostingPage() {
-  const { hostingProjects, setHosting, clients, fmt, isManagement, dataLoading } = useApp();
+  const { hostingProjects, setHosting, clients, fmtSum, isManagement, dataLoading } = useApp();
 
   const [form, setForm]           = useState(EMPTY);
   const [editing, setEditing]     = useState(null);
@@ -22,7 +22,7 @@ export default function HostingPage() {
 
   const overdue    = hostingProjects.filter(h => h.status==='overdue');
   const dueSoon    = hostingProjects.filter(h => h.status==='due-soon');
-  const totalAnnual= hostingProjects.reduce((s,h) => s+h.annualAmount, 0);
+  const totalAnnual= fmtSum(hostingProjects, h => h.annualAmount);
   const sorted     = [...hostingProjects].sort((a,b) => new Date(a.renewalDate)-new Date(b.renewalDate));
 
   const openAdd  = () => { setForm(EMPTY); setEditing(null); setErrors({}); setShowModal(true); };
@@ -68,14 +68,14 @@ export default function HostingPage() {
 
   return (
     <div className="fade-in">
-      <PageHeader title="Hosting" sub={`${hostingProjects.length} hosted clients · ${fmt(totalAnnual)}/year`} action={isManagement&&<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Hosting</Btn>}/>
+      <PageHeader title="Hosting" sub={`${hostingProjects.length} hosted clients · ${totalAnnual}/year`} action={isManagement&&<Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Hosting</Btn>}/>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:18 }}>
         {[
           { icon:<Server size={16}/>,       label:'Hosted Clients',   val:hostingProjects.length,     color:'#1B2E6B', bg:'#EEF2FA' },
           { icon:<AlertTriangle size={16}/>, label:'Overdue Renewals', val:overdue.length,             color:'var(--danger)', bg:'#FEF2F2' },
           { icon:<Clock size={16}/>,         label:'Due Within 30d',   val:dueSoon.length,             color:'var(--orange)', bg:'#FBF5EC' },
-          { icon:<CheckCircle2 size={16}/>,  label:'Annual Revenue',   val:fmt(totalAnnual),           color:'var(--success)', bg:'#EDF7F2' },
+          { icon:<CheckCircle2 size={16}/>,  label:'Annual Revenue',   val:totalAnnual,           color:'var(--success)', bg:'#EDF7F2' },
         ].map(s => (
           <Card key={s.label} style={{ display:'flex', alignItems:'center', gap:12, padding:14 }}>
             <div style={{ width:34, height:34, borderRadius:9, background:s.bg, display:'flex', alignItems:'center', justifyContent:'center', color:s.color, flexShrink:0 }}>{s.icon}</div>
@@ -99,7 +99,7 @@ export default function HostingPage() {
                     <TD><Badge label={h.plan} color={planColor[h.plan]||'var(--text-muted)'}/></TD>
                     <TD><span style={{ fontSize:13, color:'var(--text-muted)' }}>{h.server}</span></TD>
                     <TD><div style={{ display:'flex', gap:3, flexWrap:'wrap', maxWidth:160 }}>{(h.addons||[]).map(a=><span key={a} style={{ fontSize:11, padding:'1px 5px', borderRadius:4, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'var(--text-muted)', fontWeight:600 }}>{a}</span>)}</div></TD>
-                    <TD><span style={{ fontWeight:700 }}>{fmt(h.annualAmount)}</span></TD>
+                    <TD><span style={{ fontWeight:700 }}>{fmtSum([h], x => x.annualAmount)}</span></TD>
                     <TD><span style={{ fontSize:13, color:days<0?'var(--danger)':days<=30?'var(--orange)':'var(--text-muted)', fontWeight:days<0?700:400 }}>{formatDate(h.renewalDate)}</span></TD>
                     <TD><span style={{ fontSize:13, fontWeight:700, color:days<0?'var(--danger)':days<=30?'var(--orange)':'var(--text-muted)' }}>{days<0?`${Math.abs(days)}d late`:`${days}d`}</span></TD>
                     <TD><StatusBadge status={h.status}/></TD>

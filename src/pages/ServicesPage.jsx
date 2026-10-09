@@ -10,7 +10,7 @@ const ICONS      = ['💻','📱','🤖','🔍','📣','📲','🖥️','✍️'
 const EMPTY_SVC  = { name:'', icon:'💻', color:'#1B2E6B', description:'' };
 
 export function ServicesPage() {
-  const { serviceTypes, setServiceTypes, clientServices, isManagement, dataLoading, fmt } = useApp();
+  const { serviceTypes, setServiceTypes, clientServices, isManagement, dataLoading, fmtSum } = useApp();
   const [form, setForm]           = useState(EMPTY_SVC);
   const [editing, setEditing]     = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -43,7 +43,8 @@ export function ServicesPage() {
     setConfirmDel(null);
   };
 
-  const getRevenue = (svcId) => clientServices.filter(cs=>cs.serviceId===svcId&&cs.status==='active').reduce((s,cs)=>s+(cs.monthlyAmount||0),0);
+  const activeOf = (svcId) => clientServices.filter(cs=>cs.serviceId===svcId&&cs.status==='active');
+  const getRevenue = (svcId) => activeOf(svcId).reduce((s,cs)=>s+(cs.monthlyAmount||0),0);
 
   return (
     <div className="fade-in">
@@ -64,7 +65,7 @@ export function ServicesPage() {
                     {isManagement && <ActionMenu onEdit={()=>openEdit(s)} onDelete={()=>setConfirmDel(s.id)}/>}
                   </div>
                   {s.description && <p style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.6, marginBottom:10 }}>{s.description}</p>}
-                  {rev>0 && <div style={{ fontSize:14, fontWeight:700, color:'var(--success)' }}>{fmt(rev)}<span style={{ fontWeight:400, color:'var(--text-muted)' }}>/mo</span></div>}
+                  {rev>0 && <div style={{ fontSize:14, fontWeight:700, color:'var(--success)' }}>{fmtSum(activeOf(s.id), cs => cs.monthlyAmount)}<span style={{ fontWeight:400, color:'var(--text-muted)' }}>/mo</span></div>}
                 </Card>
               );
             })}

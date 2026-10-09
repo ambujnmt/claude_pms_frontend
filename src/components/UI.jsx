@@ -211,21 +211,20 @@ export function ActionMenu({ onEdit, onDelete }) {
 // ─── Currency Formatting ─────────────────────────────────────────
 
 export function formatAmount(value, currency) {
-  if (!value && value !== 0) return '—';
+  if (value === null || value === undefined || value === '') return '—';
   const num = Number(value);
   if (isNaN(num)) return '—';
 
-  let formatted;
+  // Always the exact, full number — never abbreviated (no K / M / L / Cr).
+  // Lakh-system currencies group as 1,50,000; others as 150,000.
+  // Whole amounts show no decimals ($5,500); fractional amounts show up to 2 ($5,500.50).
+  const locale = currency?.useLakhSystem ? 'en-IN' : 'en-US';
+  let formatted = new Intl.NumberFormat(locale, { minimumFractionDigits: Number.isInteger(num) ? 0 : 2, maximumFractionDigits: 2 }).format(num);
 
-  if (currency?.useLakhSystem) {
-    if (num >= 10000000) formatted = `${(num / 10000000).toFixed(1)}Cr`;
-    else if (num >= 100000) formatted = `${(num / 100000).toFixed(1)}L`;
-    else if (num >= 1000)   formatted = `${(num / 1000).toFixed(0)}K`;
-    else formatted = num.toFixed(0);
-  } else {
-    if (num >= 1000000) formatted = `${(num / 1000000).toFixed(1)}M`;
-    else if (num >= 1000) formatted = `${(num / 1000).toFixed(1)}K`;
-    else formatted = num.toFixed(currency?.decimalPlaces ?? 0);
+  const thou = currency?.thousandsSeparator;
+  const dec  = currency?.decimalSeparator;
+  if ((thou && thou !== ',') || (dec && dec !== '.')) {
+    formatted = formatted.replace(/[,.]/g, ch => (ch === ',' ? (thou || ',') : (dec || '.')));
   }
 
   const symbol = currency?.symbol || '₹';
@@ -248,6 +247,23 @@ export function calcRenewalDate(startDate, billingCycle) {
   const lastDay = new Date(ny, nm + 1, 0).getDate();
   const nd = Math.min(d, lastDay);
   return `${ny}-${String(nm + 1).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
+}
+
+// Sum amounts per currency and render "$1.0K + ₹4.5L". Used for every aggregate so amounts
+// in different project currencies are never added together as if they were the same unit.
+// items: any list; getAmount(item) -> number; getCurrency(item) -> currency object
+export function formatTotals(items, getAmount, getCurrency, empty = '—') {
+  const buckets = new Map();
+  items.forEach(it => {
+    const amt = Number(getAmount(it)) || 0;
+    const cur = getCurrency(it);
+    const key = cur?.code || cur?.id || '_';
+    const b = buckets.get(key) || { cur, total: 0 };
+    b.total += amt;
+    buckets.set(key, b);
+  });
+  const parts = [...buckets.values()].filter(b => b.total !== 0).map(b => formatAmount(b.total, b.cur));
+  return parts.length ? parts.join(' + ') : empty;
 }
 
 export function formatCurrency(value) {

@@ -15,7 +15,7 @@ const BD_ROLES = ['bd', 'management', 'super_admin'];
 const PM_ROLES = ['pm', 'management', 'super_admin'];
 
 export default function ProjectsPage() {
-  const { projects, setProjects, clients, categories, users, fmt, isBD, isManagement, showAddProject, setShowAddProject, dataLoading } = useApp();
+  const { projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance, showAddProject, setShowAddProject, dataLoading } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch]       = useState('');
@@ -41,7 +41,7 @@ export default function ProjectsPage() {
     setEditTarget(project);
     setEditForm({
       name:project.name||'', clientId:project.clientId||'', category:project.category||categories[0]?.name||'',
-      status:project.status||'active', completion:project.completion??0, budget:project.budget||'',
+      status:project.status||'active', completion:project.completion??0, budget:project.budget||'', currencyId:project.currencyId||project.currency?.id||activeCurrency?.id||'',
       startDate:project.startDate||'', endDate:project.endDate||'', description:project.description||'',
       clientCommitment:project.clientCommitment||'', color:project.color||'#2E6DB4',
       bdOwner: project.bdOwner || '', pmOwner: project.pmOwner || '',
@@ -52,6 +52,7 @@ export default function ProjectsPage() {
 
   const handleSaveEdit = async () => {
     if (!editForm.name?.trim()) { setEditErrors({ name:'Required' }); return; }
+    if (!editForm.currencyId)   { setEditErrors({ currencyId:'Select a currency' }); return; }
     setEditSaving(true);
     try {
       const updated = await projectService.update(editTarget.id, editForm);
@@ -76,7 +77,7 @@ export default function ProjectsPage() {
     <div className="fade-in">
       <PageHeader
         sub={`${projects.length} project${projects.length!==1?'s':''} total`}
-        action={(isBD||isManagement) && <Btn icon={<Plus size={14}/>} onClick={() => setShowAddProject(true)}>New Project</Btn>}
+        action={canManage && <Btn icon={<Plus size={14}/>} onClick={() => setShowAddProject(true)}>New Project</Btn>}
       />
 
       {/* Filters */}
@@ -115,7 +116,7 @@ export default function ProjectsPage() {
 
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 }}>
                   <Badge label={p.category} color={catColor(p.category)}/>
-                  <Badge label={fmt(p.budget)} color="var(--text-muted)" bg="var(--bg-elevated)"/>
+                  {canViewFinance && <Badge label={fmtFor(p, p.budget)} color="var(--text-muted)" bg="var(--bg-elevated)"/>}
                   {p.bdOwnerName && <Badge label={`BD: ${p.bdOwnerName}`} color="#4C3A9E"/>}
                   {resourceCount > 0 && <Badge label={`${resourceCount} resource${resourceCount!==1?'s':''}`} color="#1A6B3C"/>}
                 </div>
@@ -139,10 +140,10 @@ export default function ProjectsPage() {
                   {openBlockers>0 && <div style={{ display:'flex', alignItems:'center', gap:3, color:'var(--danger)', fontWeight:700 }}><AlertCircle size={11}/>{openBlockers} blocker{openBlockers>1?'s':''}</div>}
                 </div>
 
-                {(isManagement||isBD) && (
+                {canManage && (
                   <div style={{ display:'flex', gap:6 }} onClick={e=>e.stopPropagation()}>
                     <button onClick={e=>openEdit(e,p)} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid var(--border)', background:'var(--bg-elevated)', color:'#2E6DB4', fontWeight:600, cursor:'pointer' }}>Edit</button>
-                    {isManagement && <button onClick={e=>{e.stopPropagation();setConfirmDel(p.id);}} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontWeight:600, cursor:'pointer' }}>Delete</button>}
+                    {canManage && <button onClick={e=>{e.stopPropagation();setConfirmDel(p.id);}} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontWeight:600, cursor:'pointer' }}>Delete</button>}
                   </div>
                 )}
               </Card>
@@ -175,8 +176,16 @@ export default function ProjectsPage() {
               <Field label="Status"><select value={editForm.status} onChange={e=>eSet('status',e.target.value)} style={inputStyle()}><option value="active">Active</option><option value="completed">Completed</option><option value="on-hold">On Hold</option></select></Field>
               <Field label="Completion %"><input type="number" min={0} max={100} value={editForm.completion} onChange={e=>eSet('completion',parseInt(e.target.value)||0)} style={inputStyle()}/></Field>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="Budget (₹)"><input type="number" value={editForm.budget} onChange={e=>eSet('budget',e.target.value)} style={inputStyle()}/></Field>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Budget" required><input type="number" value={editForm.budget} onChange={e=>eSet('budget',e.target.value)} style={inputStyle()}/></Field>
+              <Field label="Currency" required error={editErrors.currencyId}>
+                <select value={editForm.currencyId} onChange={e=>eSet('currencyId',e.target.value)} style={inputStyle(editErrors.currencyId)}>
+                  <option value="">Select currency…</option>
+                  {currencies.map(c=><option key={c.id} value={c.id}>{c.code} ({c.symbol}) — {c.name}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <Field label="Start Date"><input type="date" value={editForm.startDate} onChange={e=>eSet('startDate',e.target.value)} style={inputStyle()}/></Field>
               <Field label="End Date"><input type="date" value={editForm.endDate} onChange={e=>eSet('endDate',e.target.value)} style={inputStyle()}/></Field>
             </div>

@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { Users, TrendingUp, AlertOctagon, Calendar, Briefcase } from 'lucide-react';
 
 export default function ResourcesPage() {
-  const { projects, categories, fmt, dataLoading } = useApp();
+  const { projects, categories, fmtSum, dataLoading } = useApp();
   const navigate = useNavigate();
 
   /* ── Active projects only feed the workload/distribution views ── */
@@ -125,7 +125,7 @@ export default function ResourcesPage() {
                       </div>
                       <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                         <Badge label={`${t.projects.length} project${t.projects.length!==1?'s':''}`} color="#2E6DB4"/>
-                        <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmt(t.totalBudget)}</span>
+                        <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmtSum(t.projects, p => p.budget)}</span>
                       </div>
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:8, paddingLeft:36 }}>
@@ -179,7 +179,7 @@ export default function ResourcesPage() {
                     </div>
                     <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                       <Badge label={`${b.projects.length} deal${b.projects.length!==1?'s':''}`} color="#4C3A9E"/>
-                      <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmt(b.totalBudget)}</span>
+                      <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmtSum(b.projects, p => p.budget)}</span>
                     </div>
                   </div>
                 ))}

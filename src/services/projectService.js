@@ -121,6 +121,7 @@ function toSnake(p) {
   if (p.startDate         !== undefined) out.start_date        = p.startDate   || null;
   if (p.endDate           !== undefined) out.end_date          = p.endDate     || null;
   if (p.budget            !== undefined) out.budget            = parseFloat(p.budget) || 0;
+  if (p.currencyId        !== undefined) out.currency_id       = p.currencyId ? parseInt(p.currencyId) : null;
   if (p.description       !== undefined) out.description       = p.description       || null;
   if (p.clientCommitment  !== undefined) out.client_commitment = p.clientCommitment  || null;
   if (p.color             !== undefined) out.color             = p.color;

@@ -4,6 +4,12 @@ import { getToken, clearToken } from '../services/api';
 
 const AuthContext = createContext(null);
 
+/* High-level roles: full add / edit / manage rights and full financial visibility.
+   Every other role is an "execution" role (developer, designer, QA, ...): they only
+   see projects / contracts assigned to them and never see money.
+   Keep this list in sync with App\Http\Middleware\EnforceRoleAccess::FULL_ACCESS_ROLES. */
+export const FULL_ACCESS_ROLES = ['super_admin', 'management', 'pm', 'team_lead', 'account_manager', 'bd'];
+
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -54,12 +60,16 @@ export function AuthProvider({ children }) {
   const isManagement = isSuperAdmin || user?.role === 'management';
   const isPM         = isSuperAdmin || isManagement || user?.role === 'pm';
   const isBD         = isSuperAdmin || isManagement || user?.role === 'bd';
+  const canManage    = !!user && FULL_ACCESS_ROLES.includes(user.role);
+  const canViewFinance = canManage;
+  const isExecution  = !!user && !canManage;
 
   return (
     <AuthContext.Provider value={{
       user, loading, error,
       login, logout,
       isSuperAdmin, isManagement, isPM, isBD,
+      canManage, canViewFinance, isExecution,
       isAuthenticated: !!user,
     }}>
       {children}

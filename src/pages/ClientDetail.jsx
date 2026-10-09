@@ -37,8 +37,7 @@ export default function ClientDetail() {
     hostingProjects,
     serviceTypes,
     currencies, activeCurrency, users,
-    fmt,
-    isManagement, isBD,
+    fmtFor, fmtSum, canManage, canViewFinance,
   } = useApp();
 
   const [tab, setTab]       = useState('overview');
@@ -95,8 +94,8 @@ export default function ClientDetail() {
     parseInt(h.clientId) === numId || h.clientId === id || h.clientId === numId
   );
   const activeProjectsCount = clientProjects.filter(p => p.status === 'active').length;
-  const monthlyRevenue = clientSvcs.filter(cs => cs.status === 'active').reduce((s, cs) => s + (cs.monthlyAmount || 0), 0);
-  const totalBudget = clientProjects.reduce((s, p) => s + (p.budget || 0), 0);
+  const monthlyRevenue = fmtSum(clientSvcs.filter(cs => cs.status === 'active'), cs => cs.monthlyAmount);
+  const totalBudget = fmtSum(clientProjects, p => p.budget);
 
   /* ── Edit client ─────────────────────────────────────── */
   const openEditClient = () => {
@@ -209,7 +208,8 @@ export default function ClientDetail() {
     </div>
   );
 
-  const canEdit = isManagement || isBD;
+  const canEdit = canManage;
+  const visibleTabs = TABS.filter(t => canViewFinance || t.key !== 'hosting');
 
   return (
     <div className="fade-in">
@@ -235,12 +235,16 @@ export default function ClientDetail() {
       </div>
 
       {/* ── KPI strip ─────────────────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${canViewFinance?4:2},1fr)`, gap:12, marginBottom:20 }}>
         {[
           { label:'Active Projects', value: activeProjectsCount, sub:`${clientProjects.length} total`,  color:'#1B2E6B', bg:'#EEF2FA' },
-          { label:'Monthly Revenue', value: fmt(monthlyRevenue), sub:`${clientSvcs.filter(s=>s.status==='active').length} active services`, color:'var(--success)', bg:'#EDF7F2' },
-          { label:'Total Budget',    value: fmt(totalBudget),    sub:'across all projects', color:'#2E6DB4', bg:'#EDF4FB' },
-          { label:'Hosting Plans',   value: clientHosting.length, sub:`${clientHosting.filter(h=>h.status==='active').length} active`, color:'#4C3A9E', bg:'#F0EDFA' },
+          ...(canViewFinance ? [
+            { label:'Monthly Revenue', value: monthlyRevenue, sub:`${clientSvcs.filter(s=>s.status==='active').length} active services`, color:'var(--success)', bg:'#EDF7F2' },
+            { label:'Total Budget',    value: totalBudget,    sub:'across all projects', color:'#2E6DB4', bg:'#EDF4FB' },
+            { label:'Hosting Plans',   value: clientHosting.length, sub:`${clientHosting.filter(h=>h.status==='active').length} active`, color:'#4C3A9E', bg:'#F0EDFA' },
+          ] : [
+            { label:'Services', value: clientSvcs.length, sub:`${clientSvcs.filter(s=>s.status==='active').length} active`, color:'#4C3A9E', bg:'#F0EDFA' },
+          ]),
         ].map(k => (
           <Card key={k.label} style={{ padding:'14px 16px', borderTop:`3px solid ${k.color}` }}>
             <div style={{ fontSize:22, fontWeight:700, color:k.color, lineHeight:1 }}>{k.value}</div>
@@ -252,7 +256,7 @@ export default function ClientDetail() {
 
       {/* ── Tabs ──────────────────────────────────────── */}
       <div style={{ display:'flex', gap:0, background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:4, marginBottom:20, width:'fit-content' }}>
-        {TABS.map(({ key, label, icon: Icon }) => (
+        {visibleTabs.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => setTab(key)} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:7, border:'none', cursor:'pointer', background:tab===key?'#1B2E6B':'transparent', color:tab===key?'#fff':'var(--text-muted)', fontSize:14, fontWeight:tab===key?700:400, transition:'all 0.13s', fontFamily:'var(--font-body)' }}>
             <Icon size={14}/>{label}
           </button>
@@ -320,7 +324,7 @@ export default function ClientDetail() {
                     <div style={{ width:3, height:36, borderRadius:3, background:p.color||'#2E6DB4', flexShrink:0 }}/>
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:600, fontSize:14 }}>{p.name}</div>
-                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{p.category} · {fmt(p.budget)}</div>
+                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{p.category}{canViewFinance ? ` · ${fmtFor(p, p.budget)}` : ''}</div>
                     </div>
                     <ProgressBar value={p.completion||0} color={p.color||'#2E6DB4'} height={4} bg="var(--border)"/>
                     <span style={{ fontSize:13, fontWeight:700, color:p.color||'#2E6DB4', minWidth:36, textAlign:'right' }}>{p.completion||0}%</span>
@@ -354,7 +358,7 @@ export default function ClientDetail() {
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, minWidth:100 }}>
                   <StatusBadge status={p.status}/>
-                  <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmt(p.budget)}</span>
+                  {canViewFinance && <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmtFor(p, p.budget)}</span>}
                 </div>
               </Card>
             ))
@@ -386,12 +390,12 @@ export default function ClientDetail() {
                         <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
                           {cs.contractType} · {cs.billingCycle} billing
                           {cs.startDate ? ` · Started ${formatDate(cs.startDate)}` : ''}
-                          {cs.paymentMethod ? ` · ${cs.paymentMethod}` : ''}
+                          {canViewFinance && cs.paymentMethod ? ` · ${cs.paymentMethod}` : ''}
                           {cs.reportingDay ? ` · Reports on the ${cs.reportingDay}${ordinalSuffix(cs.reportingDay)} of every month` : ''}
                         </div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
-                        <span style={{ fontSize:18, fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}<span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)' }}>/mo</span></span>
+                        {canViewFinance && <span style={{ fontSize:18, fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}<span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)' }}>/mo</span></span>}
                         <StatusBadge status={cs.status}/>
                       </div>
                       {canEdit && (
@@ -408,17 +412,17 @@ export default function ClientDetail() {
           }
 
           {/* Monthly total */}
-          {clientSvcs.length > 0 && (
+          {canViewFinance && clientSvcs.length > 0 && (
             <Card style={{ marginTop:14, padding:'13px 18px', background:'#EDF4FB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span style={{ fontSize:14, fontWeight:600, color:'#1B2E6B' }}>Total Monthly Revenue</span>
-              <span style={{ fontSize:22, fontWeight:800, color:'var(--success)' }}>{fmt(monthlyRevenue)}/mo</span>
+              <span style={{ fontSize:22, fontWeight:800, color:'var(--success)' }}>{monthlyRevenue}/mo</span>
             </Card>
           )}
         </div>
       )}
 
       {/* ══ HOSTING TAB ═════════════════════════════════ */}
-      {tab === 'hosting' && (
+      {tab === 'hosting' && canViewFinance && (
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
           {clientHosting.length === 0
             ? <EmptyState icon="🖥️" message="No hosting plans for this client."/>
@@ -437,7 +441,7 @@ export default function ClientDetail() {
                   )}
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
-                  <span style={{ fontSize:16, fontWeight:700, color:'#2E6DB4' }}>{fmt(h.annualAmount)}/yr</span>
+                  <span style={{ fontSize:16, fontWeight:700, color:'#2E6DB4' }}>{fmtSum([h], x => x.annualAmount)}/yr</span>
                   <StatusBadge status={h.status}/>
                 </div>
               </Card>

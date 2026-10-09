@@ -2,22 +2,23 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
+// managerOnly: hidden from execution roles (developer, designer, ...)
 const NAV = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard',   exact: true },
   { to: '/clients',     icon: Users,           label: 'Clients' },
   { to: '/projects',    icon: FolderKanban,    label: 'Projects' },
   { to: '/milestones',  icon: Milestone,       label: 'Milestones' },
   { to: '/maintenance', icon: Wrench,          label: 'Maintenance' },
-  { to: '/resources',   icon: BarChart2,       label: 'Workload' },
-  { to: '/team',        icon: UserCog,         label: 'Team' },
-  { to: '/hosting',     icon: Server,          label: 'Hosting' },
-  { to: '/services',    icon: Layers,          label: 'Services' },
-  { to: '/currencies',  icon: DollarSign,      label: 'Currencies' },
-  { to: '/categories',  icon: Tag,             label: 'Categories' },
+  { to: '/resources',   icon: BarChart2,       label: 'Workload', managerOnly: true },
+  { to: '/team',        icon: UserCog,         label: 'Team', managerOnly: true },
+  { to: '/hosting',     icon: Server,          label: 'Hosting', managerOnly: true },
+  { to: '/services',    icon: Layers,          label: 'Services', managerOnly: true },
+  { to: '/currencies',  icon: DollarSign,      label: 'Currencies', managerOnly: true },
+  { to: '/categories',  icon: Tag,             label: 'Categories', managerOnly: true },
 ];
 
 export default function Sidebar() {
-  const { sidebarOpen, setSidebarOpen, user, isBD, setShowAddProject, activeCurrency } = useApp();
+  const { sidebarOpen, setSidebarOpen, user, isBD, canManage, setShowAddProject, activeCurrency } = useApp();
   const loc = useLocation();
 
   const NAV_BG     = '#1B2E6B';
@@ -43,7 +44,7 @@ export default function Sidebar() {
       </div>
 
       {/* Currency indicator */}
-      {sidebarOpen && (
+      {sidebarOpen && canManage && (
         <div style={{ margin:'10px 12px 0', padding:'5px 10px', borderRadius:6, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', display:'flex', alignItems:'center', gap:8 }}>
           <span style={{ fontSize:15, fontWeight:700, color:'#A8CEEC' }}>{activeCurrency.symbol}</span>
           <span style={{ fontSize:12, color:'rgba(255,255,255,0.55)' }}>{activeCurrency.code} — {activeCurrency.name}</span>
@@ -51,7 +52,7 @@ export default function Sidebar() {
       )}
 
       {/* Add Project */}
-      {isBD && (
+      {canManage && (
         <div style={{ padding:sidebarOpen?'10px 12px 0':'10px 8px 0' }}>
           <button onClick={() => setShowAddProject(true)} style={{ width:'100%', display:'flex', alignItems:'center', gap:8, padding:sidebarOpen?'9px 14px':'9px 0', justifyContent:sidebarOpen?'flex-start':'center', borderRadius:8, border:'1.5px dashed rgba(255,255,255,0.35)', background:'rgba(255,255,255,0.08)', color:'#fff', fontSize:14, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.background='rgba(74,144,217,0.30)'; }}
@@ -65,7 +66,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ flex:1, padding:'12px 10px', display:'flex', flexDirection:'column', gap:3, overflowY:'auto' }}>
-        {NAV.map(({ to, icon:Icon, label, exact }) => {
+        {NAV.filter(n => canManage || !n.managerOnly).map(({ to, icon:Icon, label, exact }) => {
           const active = exact ? loc.pathname === to : loc.pathname.startsWith(to);
           return (
             <NavLink key={to} to={to} style={{ textDecoration:'none' }}>

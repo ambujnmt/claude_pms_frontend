@@ -11,11 +11,11 @@ const COLORS = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B
 const BD_ROLES = ['bd', 'management', 'super_admin'];
 
 export default function AddProjectModal() {
-  const { setShowAddProject, setProjects, user, clients, categories, users } = useApp();
+  const { setShowAddProject, setProjects, user, clients, categories, users, currencies, activeCurrency } = useApp();
 
   const EMPTY = {
     name: '', clientId: '', category: categories[0]?.name || 'Website',
-    budget: '', startDate: '', endDate: '',
+    budget: '', currencyId: activeCurrency?.id || '', startDate: '', endDate: '',
     bdOwner: BD_ROLES.includes(user?.role) ? (user?.id || '') : '',
     pmOwner: '',
     resources: [],
@@ -38,6 +38,7 @@ export default function AddProjectModal() {
     if (!form.name.trim())              e.name     = 'Required';
     if (!form.clientId)                 e.clientId = 'Select a client';
     if (!form.budget || isNaN(form.budget)) e.budget = 'Enter valid amount';
+    if (!form.currencyId)               e.currencyId = 'Select a currency';
     if (!form.startDate)                e.startDate = 'Required';
     if (!form.endDate)                  e.endDate   = 'Required';
     setErrors(e);
@@ -54,6 +55,7 @@ export default function AddProjectModal() {
         category:          form.category,
         status:            'active',
         budget:            parseFloat(form.budget),
+        currencyId:        parseInt(form.currencyId),
         startDate:         form.startDate,
         endDate:           form.endDate,
         bdOwner:           form.bdOwner || null,
@@ -146,7 +148,7 @@ export default function AddProjectModal() {
           <Field label="Client Commitment (promises made to client)">
             <textarea value={form.clientCommitment} onChange={e => set('clientCommitment', e.target.value)} rows={2} placeholder="Any delivery promises, demo dates, features committed…" style={{ ...inputStyle(), resize: 'vertical', borderColor: '#8B5E0A50' }} />
           </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Field label="Category">
               <select value={form.category} onChange={e => set('category', e.target.value)} style={inputStyle()}>
                 {categories.length === 0
@@ -155,8 +157,14 @@ export default function AddProjectModal() {
                 }
               </select>
             </Field>
-            <Field label="Budget (₹)" required error={errors.budget}>
+            <Field label="Budget" required error={errors.budget}>
               <input type="number" value={form.budget} onChange={e => set('budget', e.target.value)} placeholder="e.g. 1500000" style={inputStyle(errors.budget)} />
+            </Field>
+            <Field label="Currency" required error={errors.currencyId}>
+              <select value={form.currencyId} onChange={e => set('currencyId', e.target.value)} style={inputStyle(errors.currencyId)}>
+                <option value="">Select currency…</option>
+                {currencies.map(c => <option key={c.id} value={c.id}>{c.code} ({c.symbol}) — {c.name}</option>)}
+              </select>
             </Field>
             <Field label="Accent Colour">
               <div style={{ display: 'flex', gap: 6, paddingTop: 5 }}>
@@ -226,7 +234,7 @@ export default function AddProjectModal() {
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Set up the payment schedule.</p>
           {form.payments.map((p, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 8, alignItems: 'center' }}>
-              <input type="number" value={p.amount} onChange={e => updP(i, 'amount', e.target.value)} placeholder="Amount (₹)" style={inputStyle()} />
+              <input type="number" value={p.amount} onChange={e => updP(i, 'amount', e.target.value)} placeholder={`Amount (${(currencies.find(c => String(c.id) === String(form.currencyId)) || activeCurrency)?.code || ""})`} style={inputStyle()} />
               <select value={p.type} onChange={e => updP(i, 'type', e.target.value)} style={{ ...inputStyle(), width: 110 }}>
                 <option>Advance</option><option>Milestone</option><option>Final</option>
               </select>

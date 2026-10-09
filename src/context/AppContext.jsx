@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { formatAmount } from '../components/UI';
+import { formatAmount, formatTotals } from '../components/UI';
 
 import clientService      from '../services/clientService';
 import projectService     from '../services/projectService';
@@ -21,7 +21,7 @@ const DEFAULT_CURRENCY = {
 };
 
 export function AppProvider({ children }) {
-  const { user, isManagement:authIsManagement, isPM:authIsPM, isBD:authIsBD, logout } = useAuth();
+  const { user, isManagement:authIsManagement, isPM:authIsPM, isBD:authIsBD, canManage, canViewFinance, isExecution, logout } = useAuth();
 
   const [clients,        setClients]        = useState([]);
   const [projects,       setProjects]       = useState([]);
@@ -45,6 +45,15 @@ export function AppProvider({ children }) {
 
   const fmt = useCallback((value) => formatAmount(value, activeCurrency), [activeCurrency]);
 
+  /* Per-entity currency: a project / contract is always shown in ITS OWN currency.
+     Falls back to the default currency only for legacy rows that have none. */
+  const currencyOf = useCallback((entity) =>
+    entity?.currency || currencies.find(c => String(c.id) === String(entity?.currencyId)) || activeCurrency,
+  [currencies, activeCurrency]);
+  const fmtFor = useCallback((entity, value) => formatAmount(value, currencyOf(entity)), [currencyOf]);
+  /* Aggregate across entities WITHOUT mixing currencies: "$1.0K + ₹4.5L" */
+  const fmtSum = useCallback((items, getAmount) => formatTotals(items, getAmount, currencyOf, formatAmount(0, activeCurrency)), [currencyOf, activeCurrency]);
+
   const loadAllData = useCallback(async () => {
     if (!user) return;
     setDataLoading(true);
@@ -54,20 +63,33 @@ export function AppProvider({ children }) {
         clientsData, projectsData, servicesData,
         clientServicesData, hostingData, currenciesData, categoriesData, usersData,
       ] = await Promise.all([
-        clientService.getAll(),
+        clientService.getAll().catch(() => []),
         projectService.getAll(),
-        serviceTypeService.getAll(),
-        clientServiceApi.getAll(),
-        hostingService.getAll(),
+        serviceTypeService.getAll().catch(() => []),
+        clientServiceApi.getAll().catch(() => []),
+        // Hosting carries pricing - execution roles never get it (API returns 403 for them too)
+        isExecution ? Promise.resolve([]) : hostingService.getAll().catch(() => []),
         currencyService.getAll(),
-        categoryService.getAll(),
-        userService.getAll(),
+        categoryService.getAll().catch(() => []),
+        userService.getAll().catch(() => []),
       ]);
 
-      setClients(clientsData);
-      setProjects(projectsData);
+      // Defence in depth: execution roles only ever see what is assigned to them
+      // (the API enforces the same rule; this keeps the UI correct even if it lags).
+      const mine = (item) => {
+        const uid = String(user.id);
+        const ids = (item.resourceIds || []).map(String);
+        return ids.includes(uid) || String(item.bdOwner ?? item.bdOwnerId ?? '') === uid || String(item.pmOwner ?? item.pmOwnerId ?? '') === uid;
+      };
+      const projectsScoped = isExecution ? projectsData.filter(mine) : projectsData;
+      const servicesScoped = isExecution ? clientServicesData.filter(mine) : clientServicesData;
+      const visibleClientIds = new Set([...projectsScoped, ...servicesScoped].map(x => String(x.clientId)));
+      const clientsScoped = isExecution ? clientsData.filter(c => visibleClientIds.has(String(c.id))) : clientsData;
+
+      setClients(clientsScoped);
+      setProjects(projectsScoped);
       setServiceTypes(servicesData);
-      setClientServices(clientServicesData);
+      setClientServices(servicesScoped);
       setHosting(hostingData);
       setCurrencies(currenciesData.list);
       if (currenciesData.default) setActiveCurrency(currenciesData.default);
@@ -80,7 +102,7 @@ export function AppProvider({ children }) {
     } finally {
       setDataLoading(false);
     }
-  }, [user]);
+  }, [user, isExecution]);
 
   useEffect(() => {
     if (user) {
@@ -162,12 +184,12 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       user, logout,
-      isManagement, isPM, isBD,
+      isManagement, isPM, isBD, canManage, canViewFinance, isExecution,
       dataLoading, dataError, loadAllData,
 
       currencies, setCurrencies,
       activeCurrency, setActiveCurrency,
-      fmt,
+      fmt, currencyOf, fmtFor, fmtSum,
       addCurrency, updateCurrency, deleteCurrency, setDefaultCurrency,
 
       categories, setCategories,

@@ -13,7 +13,7 @@ const BLUE = '#2E6DB4';
 const SKY  = '#4A90D9';
 
 export default function Dashboard() {
-  const { projects, clients, clientServices, categories, fmt, dataLoading } = useApp();
+  const { projects, clients, clientServices, categories, fmtFor, fmtSum, canViewFinance, dataLoading } = useApp();
   const navigate = useNavigate();
 
   /* ── Core project stats ────────────────────────────────────── */
@@ -37,16 +37,17 @@ export default function Dashboard() {
   , [projects]);
 
   /* ── Payment health — real, computed from every project's payments ── */
-  const allPayments = useMemo(() => projects.flatMap(p => (p.payments || []).map(pay => ({ ...pay, projectName: p.name, projectId: p.id }))), [projects]);
-  const received = allPayments.filter(p => p.status === 'received').reduce((s, p) => s + p.amount, 0);
+  const allPayments = useMemo(() => projects.flatMap(p => (p.payments || []).map(pay => ({ ...pay, projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId }))), [projects]);
+  const receivedList = allPayments.filter(p => p.status === 'received');
   const now = new Date();
   const overduePayments = allPayments.filter(p => p.status !== 'received' && p.date && new Date(p.date) < now);
   const upcomingPayments = allPayments
     .filter(p => p.status !== 'received' && p.date && new Date(p.date) >= now)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(0, 5);
-  const overdueAmount  = overduePayments.reduce((s, p) => s + p.amount, 0);
-  const pendingAmount  = allPayments.filter(p => p.status !== 'received').reduce((s, p) => s + p.amount, 0);
+  const pendingList    = allPayments.filter(p => p.status !== 'received');
+  // Each project's money is shown in ITS OWN currency; mixed currencies are listed side by side, never summed together
+  const amt = (p) => p.amount;
 
   /* ── Client stats ──────────────────────────────────────────── */
   const activeServicesCount = clientServices.filter(cs => cs.status === 'active').length;
@@ -109,18 +110,18 @@ export default function Dashboard() {
         <KpiCard icon={<AlertTriangle size={17}/>} label="Open Blockers"   value={blockers.length}      sub="needing attention"                                                     accent={blockers.length?'var(--danger)':BLUE} light={blockers.length?'#FEF2F2':'#EDF4FB'} to="/projects" navigate={navigate}/>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1.3fr 1fr', gap:16, marginBottom:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns: canViewFinance ? '1.3fr 1fr' : '1fr', gap:16, marginBottom:16 }}>
 
-        {/* ── Payment health ──────────────────────────────────── */}
-        <Card>
+        {/* ── Payment health — managers only; execution roles never see money ── */}
+        {canViewFinance && <Card>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
             <div style={{ fontSize:15, fontWeight:700, color:NAVY }}>Payment Health</div>
             <Wallet size={16} color="var(--text-muted)"/>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:16 }}>
-            <MiniStat label="Received"  value={fmt(received)}      color="var(--success)"/>
-            <MiniStat label="Pending"   value={fmt(pendingAmount)} color="var(--warning)"/>
-            <MiniStat label="Overdue"   value={fmt(overdueAmount)} color={overdueAmount>0?'var(--danger)':'var(--text-muted)'}/>
+            <MiniStat label="Received"  value={fmtSum(receivedList, amt)}     color="var(--success)"/>
+            <MiniStat label="Pending"   value={fmtSum(pendingList, amt)}      color="var(--warning)"/>
+            <MiniStat label="Overdue"   value={fmtSum(overduePayments, amt)}  color={overduePayments.length>0?'var(--danger)':'var(--text-muted)'}/>
           </div>
 
           {upcomingPayments.length > 0 && (
@@ -132,17 +133,17 @@ export default function Dashboard() {
                     <span style={{ color:'var(--text)' }}>{p.projectName} <span style={{ color:'var(--text-muted)' }}>· {p.type}</span></span>
                     <span style={{ display:'flex', gap:8, alignItems:'center' }}>
                       <span style={{ color:'var(--text-muted)' }}>{formatDate(p.date)}</span>
-                      <strong style={{ color:BLUE }}>{fmt(p.amount)}</strong>
+                      <strong style={{ color:BLUE }}>{fmtFor(p, p.amount)}</strong>
                     </span>
                   </div>
                 ))}
               </div>
             </>
           )}
-          {upcomingPayments.length === 0 && overdueAmount === 0 && (
+          {upcomingPayments.length === 0 && overduePayments.length === 0 && (
             <div style={{ fontSize:13, color:'var(--text-muted)', textAlign:'center', padding:'10px 0' }}>No pending payments scheduled.</div>
           )}
-        </Card>
+        </Card>}
 
         {/* ── Project status breakdown ────────────────────────── */}
         <Card>

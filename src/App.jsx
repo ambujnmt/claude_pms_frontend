@@ -18,6 +18,12 @@ import MaintenanceDetail   from './pages/MaintenanceDetail';
 import CurrenciesPage      from './pages/CurrenciesPage';
 import TeamPage            from './pages/TeamPage';
 
+/* Pages execution roles (developer, designer, ...) must never reach, even by typing the URL */
+function ManagersOnly({ children }) {
+  const { canManage } = useAuth();
+  return canManage ? children : <Navigate to="/" replace />;
+}
+
 function ProtectedLayout() {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return (
@@ -43,14 +49,14 @@ export default function App() {
               <Route path="projects"         element={<ProjectsPage />} />
               <Route path="projects/:id"     element={<ProjectDetail />} />
               <Route path="milestones"       element={<MilestonesPage />} />
-              <Route path="resources"        element={<ResourcesPage />} />
-              <Route path="team"             element={<TeamPage />} />
-              <Route path="categories"       element={<CategoryPage />} />
-              <Route path="hosting"          element={<HostingPage />} />
-              <Route path="services"         element={<ServicesPage />} />
+              <Route path="resources" element={<ManagersOnly><ResourcesPage /></ManagersOnly>} />
+              <Route path="team" element={<ManagersOnly><TeamPage /></ManagersOnly>} />
+              <Route path="categories" element={<ManagersOnly><CategoryPage /></ManagersOnly>} />
+              <Route path="hosting" element={<ManagersOnly><HostingPage /></ManagersOnly>} />
+              <Route path="services" element={<ManagersOnly><ServicesPage /></ManagersOnly>} />
               <Route path="maintenance"      element={<MaintenancePage />} />
               <Route path="maintenance/:id"  element={<MaintenanceDetail />} />
-              <Route path="currencies"       element={<CurrenciesPage />} />
+              <Route path="currencies" element={<ManagersOnly><CurrenciesPage /></ManagersOnly>} />
               <Route path="*" element={<Navigate to="/" />} />
             </Route>
           </Routes>

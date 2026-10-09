@@ -29,7 +29,7 @@ const EMPTY = { clientId:'', bdOwner:'', resources:[], serviceId:'', name:'', co
 
 export default function MaintenancePage() {
   const navigate = useNavigate();
-  const { clients, clientServices, setClientServices, serviceTypes, currencies, activeCurrency, users, isManagement, isBD , fmt } = useApp();
+  const { clients, clientServices, setClientServices, serviceTypes, currencies, activeCurrency, users, canManage, canViewFinance, fmtSum } = useApp();
 
   const [tab, setTab]             = useState('all');
   const [search, setSearch]       = useState('');
@@ -80,7 +80,7 @@ export default function MaintenancePage() {
   });
 
   const activeContracts = clientServices.filter(cs => cs.status === 'active');
-  const totalMonthly    = activeContracts.reduce((s, cs) => s + cs.monthlyAmount, 0);
+  const totalMonthly    = fmtSum(activeContracts, cs => cs.monthlyAmount);
   const uniqueClients   = new Set(activeContracts.map(cs => cs.clientId)).size;
   const pausedCount     = clientServices.filter(cs => cs.status === 'paused').length;
 
@@ -130,7 +130,7 @@ export default function MaintenancePage() {
     setConfirmDel(null);
   };
 
-  const canEdit = isManagement || isBD;
+  const canEdit = canManage;
   const TABS = [['all','All Contracts'],['dev','Development / AI'],['seo','SEO'],['ppc','PPC / Social / Content']];
 
   return (
@@ -142,11 +142,11 @@ export default function MaintenancePage() {
       />
 
       {/* KPIs */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${canViewFinance?4:3},1fr)`, gap:12, marginBottom:20 }}>
         {[
           { icon:<Wrench size={16}/>,      label:'Active Contracts',    value:activeContracts.length,          color:'#1B2E6B', bg:'#EEF2FA' },
           { icon:<Users size={16}/>,        label:'Clients on Retainer', value:uniqueClients,                   color:'#2E6DB4', bg:'#EDF4FB' },
-          { icon:<TrendingUp size={16}/>,   label:'Monthly Revenue',     value:fmt(totalMonthly),    color:'var(--success)', bg:'#EDF7F2' },
+          ...(canViewFinance ? [{ icon:<TrendingUp size={16}/>,   label:'Monthly Revenue',     value:totalMonthly,    color:'var(--success)', bg:'#EDF7F2' }] : []),
           { icon:<AlertCircle size={16}/>,  label:'Paused',              value:pausedCount,                     color:'#8B5E0A', bg:'#FBF5EC' },
         ].map(s => (
           <Card key={s.label} style={{ display:'flex', alignItems:'center', gap:12, padding:14 }}>
@@ -175,7 +175,7 @@ export default function MaintenancePage() {
         {loading
           ? <div style={{ padding:28, textAlign:'center', color:'var(--text-muted)', fontSize:14 }}>Loading contracts…</div>
           : (
-            <Table headers={['Client','Contract Name','Type','Monthly','Billing','Payment','Start Date','Renewal','Reporting Day','Status','Notes', canEdit?'Actions':'']}>
+            <Table headers={['Client','Contract Name','Type',...(canViewFinance?['Monthly']:[]),'Billing',...(canViewFinance?['Payment']:[]),'Start Date','Renewal','Reporting Day','Status','Notes', canEdit?'Actions':'']}>
               {filtered.length === 0 && (
                 <TR><td colSpan={12} style={{ padding:28, textAlign:'center', color:'var(--text-muted)', fontSize:14 }}>
                   No contracts found. {canEdit && <span style={{ color:'#2E6DB4', cursor:'pointer', fontWeight:600 }} onClick={openAdd}>Add one →</span>}
@@ -192,9 +192,9 @@ export default function MaintenancePage() {
                     </TD>
                     <TD><span onClick={() => navigate(`/maintenance/${cs.id}`)} style={{ fontWeight:600, color:'#2E6DB4', cursor:'pointer' }}>{cs.name}</span></TD>
                     <TD><Badge label={cs.contractType||'Other'} color={tcolor}/></TD>
-                    <TD><span style={{ fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}</span></TD>
+                    {canViewFinance && <TD><span style={{ fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}</span></TD>}
                     <TD><span style={{ color:'var(--text-muted)', textTransform:'capitalize' }}>{cs.billingCycle}</span></TD>
-                    <TD><span style={{ color:'var(--text-muted)' }}>{cs.paymentMethod || '—'}</span></TD>
+                    {canViewFinance && <TD><span style={{ color:'var(--text-muted)' }}>{cs.paymentMethod || '—'}</span></TD>}
                     <TD><span style={{ color:'var(--text-muted)' }}>{formatDate(cs.startDate)}</span></TD>
                     <TD><span style={{ color:'var(--text-muted)' }}>{formatDate(cs.renewalDate)||'—'}</span></TD>
                     <TD><span style={{ color:'var(--text-muted)' }}>{cs.reportingDay ? `${cs.reportingDay} of month` : '—'}</span></TD>
@@ -210,23 +210,23 @@ export default function MaintenancePage() {
       </Card>
 
       {/* Revenue by type */}
-      <div>
+      {canViewFinance && <div>
         <h2 style={{ fontSize:16, fontWeight:700, color:'#1B2E6B', marginBottom:14 }}>Revenue by Service Type</h2>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px,1fr))', gap:10 }}>
           {CONTRACT_TYPES.map(type => {
             const contracts = clientServices.filter(cs => (cs.contractType||'Other')===type && cs.status==='active');
             if (!contracts.length) return null;
-            const rev = contracts.reduce((s,cs) => s + cs.monthlyAmount, 0);
+            const rev = fmtSum(contracts, cs => cs.monthlyAmount);
             return (
               <Card key={type} style={{ padding:'13px 16px' }}>
                 <div style={{ marginBottom:6 }}><Badge label={type} color={TYPE_COLOR[type]||'var(--text-muted)'}/></div>
-                <div style={{ fontSize:20, fontWeight:700, color:TYPE_COLOR[type]||'var(--text-muted)' }}>{fmt(rev)}<span style={{ fontSize:14, fontWeight:400, color:'var(--text-muted)' }}>/mo</span></div>
+                <div style={{ fontSize:20, fontWeight:700, color:TYPE_COLOR[type]||'var(--text-muted)' }}>{rev}<span style={{ fontSize:14, fontWeight:400, color:'var(--text-muted)' }}>/mo</span></div>
                 <div style={{ fontSize:14, color:'var(--text-muted)', marginTop:3 }}>{contracts.length} client{contracts.length!==1?'s':''}</div>
               </Card>
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Modal */}
       {showModal && (

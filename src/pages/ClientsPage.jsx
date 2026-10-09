@@ -12,7 +12,7 @@ const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Re
 const EMPTY_FORM = { name:'', contactPerson:'', email:'', website:'', phone:'', city:'', industry:'', status:'active', notes:'' };
 
 export default function ClientsPage() {
-  const { clients, setClients, projects, clientServices, fmt, isManagement, isBD, dataLoading } = useApp();
+  const { clients, setClients, projects, clientServices, fmtSum, canManage, canViewFinance, dataLoading } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch]         = useState('');
@@ -39,7 +39,7 @@ export default function ClientsPage() {
     const id = parseInt(clientId) || clientId;
     const cProjects = projects.filter(p => parseInt(p.clientId)===id || p.clientId===clientId);
     const cServices = clientServices.filter(cs => parseInt(cs.clientId)===id || cs.clientId===clientId);
-    const monthly   = cServices.filter(cs => cs.status==='active').reduce((s,cs) => s+(cs.monthlyAmount||0), 0);
+    const monthly   = fmtSum(cServices.filter(cs => cs.status==='active'), cs => cs.monthlyAmount, '');
     return { projectCount:cProjects.length, serviceCount:cServices.length, monthly };
   };
 
@@ -85,7 +85,7 @@ export default function ClientsPage() {
     setConfirmDel(null);
   };
 
-  const canEdit = isManagement || isBD;
+  const canEdit = canManage;
 
   return (
     <div className="fade-in">
@@ -150,13 +150,13 @@ export default function ClientsPage() {
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap', paddingTop:10, borderTop:'1px solid var(--border)', marginBottom:10 }}>
                   <Chip label={`${stats.projectCount} Project${stats.projectCount!==1?'s':''}`} color="#2E6DB4"/>
                   <Chip label={`${stats.serviceCount} Service${stats.serviceCount!==1?'s':''}`} color="#4C3A9E"/>
-                  {stats.monthly > 0 && <Chip label={`${fmt(stats.monthly)}/mo`} color="var(--success)"/>}
+                  {canViewFinance && stats.monthly && <Chip label={`${stats.monthly}/mo`} color="var(--success)"/>}
                 </div>
 
                 {canEdit && (
                   <div style={{ display:'flex', gap:6 }} onClick={e => e.stopPropagation()}>
                     <button onClick={e => openEdit(e, client)} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid var(--border)', background:'var(--bg-elevated)', color:'#2E6DB4', fontWeight:600, cursor:'pointer' }}>Edit</button>
-                    {isManagement && <button onClick={e => { e.stopPropagation(); setConfirmDel(client.id); }} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontWeight:600, cursor:'pointer' }}>Delete</button>}
+                    {canManage && <button onClick={e => { e.stopPropagation(); setConfirmDel(client.id); }} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontWeight:600, cursor:'pointer' }}>Delete</button>}
                   </div>
                 )}
               </Card>

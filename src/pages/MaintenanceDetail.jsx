@@ -68,7 +68,7 @@ const initials = (u) => u.avatar || (u.name || '').split(' ').map(w => w[0]).joi
 export default function MaintenanceDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { clientServices, setClientServices, clients, users, currencies, activeCurrency, isManagement, isBD } = useApp();
+  const { clientServices, setClientServices, clients, users, currencies, activeCurrency, canManage, canViewFinance } = useApp();
 
   const [svc, setSvc] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -82,7 +82,7 @@ export default function MaintenanceDetail() {
   const [confirmDel, setConfirmDel] = useState(false);
 
   const numId = parseInt(id) || id;
-  const canEdit = isManagement || isBD;
+  const canEdit = canManage;
 
   useEffect(() => {
     const load = async () => {
@@ -200,10 +200,10 @@ export default function MaintenanceDetail() {
       </div>
 
       {/* KPI strip */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${canViewFinance?5:3},1fr)`, gap:12, marginBottom:20 }}>
         {[
-          { label:'Monthly Amount', value:formatAmount(svc.monthlyAmount, currency), color:'var(--success)' },
-          { label:`Per ${svc.billingCycle === 'annual' ? 'year' : svc.billingCycle === 'quarterly' ? 'quarter' : 'month'} billed`, value:formatAmount(perCycle, currency), color:'#1B2E6B' },
+          ...(canViewFinance ? [{ label:'Monthly Amount', value:formatAmount(svc.monthlyAmount, currency), color:'var(--success)' },
+          { label:`Per ${svc.billingCycle === 'annual' ? 'year' : svc.billingCycle === 'quarterly' ? 'quarter' : 'month'} billed`, value:formatAmount(perCycle, currency), color:'#1B2E6B' }] : []),
           { label:'Next Renewal', value: renewalIn === null ? '—' : renewalIn < 0 ? `${-renewalIn}d overdue` : renewalIn === 0 ? 'Today' : `${renewalIn} days`, color: renewalIn !== null && renewalIn < 0 ? 'var(--danger)' : renewalIn !== null && renewalIn <= 7 ? 'var(--warning)' : '#2E6DB4' },
           { label:'Next Report', value: nextReport ? formatDate(nextReport) : '—', color:'#4C3A9E' },
           { label:'Months Active', value:activeMonths, color:'#1A6B3C' },
@@ -246,9 +246,9 @@ export default function MaintenanceDetail() {
                 { label:'Client', value: client?.name, link: client ? () => navigate(`/clients/${client.id}`) : null },
                 { label:'Contract Type', value: svc.contractType },
                 { label:'Service', value: svc.serviceType ? `${svc.serviceType.icon || ''} ${svc.serviceType.name}`.trim() : null },
-                { label:'Monthly Amount', value: `${formatAmount(svc.monthlyAmount, currency)} ${currency?.code || ''}` },
+                { label:'Monthly Amount', value: canViewFinance ? `${formatAmount(svc.monthlyAmount, currency)} ${currency?.code || ''}` : null },
                 { label:'Billing Cycle', value: svc.billingCycle, cap: true },
-                { label:'Payment Method', value: svc.paymentMethod },
+                { label:'Payment Method', value: canViewFinance ? svc.paymentMethod : null },
                 { label:'Start Date', value: formatDate(svc.startDate) },
                 { label:'Renewal Date', value: svc.renewalDate ? formatDate(svc.renewalDate) : null },
                 { label:'Monthly Reporting', value: svc.reportingDay ? `${svc.reportingDay}${ordinal(svc.reportingDay)} of every month` : null },
@@ -302,7 +302,7 @@ export default function MaintenanceDetail() {
                 {billingDates.map((d, i) => (
                   <div key={d} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 12px', borderRadius:8, background:'var(--bg-elevated)', fontSize:13 }}>
                     <span style={{ fontWeight:600 }}>{formatDate(d)} <span style={{ color:'var(--text-muted)', fontWeight:400 }}>· {daysTo(d)}</span></span>
-                    <strong style={{ color:'var(--success)' }}>{formatAmount(perCycle, currency)}</strong>
+                    {canViewFinance && <strong style={{ color:'var(--success)' }}>{formatAmount(perCycle, currency)}</strong>}
                   </div>
                 ))}
               </div>

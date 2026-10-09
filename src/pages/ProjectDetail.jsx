@@ -47,7 +47,7 @@ export default function ProjectDetail() {
   const { id }       = useParams();
   const navigate     = useNavigate();
   const {
-    projects, setProjects, clients, categories, users, fmt, isManagement, isBD,
+    projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance,
   } = useApp();
 
   const [project, setProject] = useState(null);
@@ -121,6 +121,7 @@ export default function ProjectDetail() {
       category:         project.category         || categories[0]?.name || '',
       status:           project.status           || 'active',
       budget:           project.budget           || '',
+      currencyId:       project.currencyId       || project.currency?.id || activeCurrency?.id || '',
       startDate:        project.startDate        || '',
       endDate:          project.endDate          || '',
       description:      project.description      || '',
@@ -136,6 +137,7 @@ export default function ProjectDetail() {
 
   const handleSaveProject = async () => {
     if (!editForm.name?.trim()) { setEditErrors({ name:'Required' }); return; }
+    if (!editForm.currencyId)   { setEditErrors({ currencyId:'Select a currency' }); return; }
     setEditSaving(true);
     try {
       const updated = await projectService.update(project.id, editForm);
@@ -313,7 +315,11 @@ export default function ProjectDetail() {
   const totalBudget   = project.budget || 0;
   const received      = payments.filter(p => p.status === 'received').reduce((s,p) => s + p.amount, 0);
   const completedMilestones = milestones.filter(m => m.status === 'completed').length;
-  const canEdit = isManagement || isBD;
+  const canEdit = canManage;
+  // Every amount on this page is shown in THIS project's own currency
+  const fmt = (v) => fmtFor(project, v);
+  const projectCurrency = project.currency || currencies.find(c => String(c.id) === String(project.currencyId)) || activeCurrency;
+  const visibleTabs = TABS.filter(t => t.key !== 'payments' || canViewFinance);
 
   const tabBadge = (key) => key === 'blockers' && openBlockers.length > 0 ? openBlockers.length : null;
 
@@ -349,14 +355,14 @@ export default function ProjectDetail() {
       </div>
 
       {/* ── KPI strip ─────────────────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:`repeat(${canViewFinance ? 5 : 3},1fr)`, gap:12, marginBottom:20 }}>
         {[
           { label:'Completion',   value:`${project.completion||0}%`,                    color:project.color||'#2E6DB4' },
-          { label:'Budget',       value:fmt(totalBudget),                                color:'#1B2E6B' },
-          { label:'Received',     value:fmt(received),                                   color:'var(--success)' },
+          canViewFinance && { label:'Budget',       value:fmt(totalBudget),                                color:'#1B2E6B' },
+          canViewFinance && { label:'Received',     value:fmt(received),                                   color:'var(--success)' },
           { label:'Milestones',   value:`${completedMilestones}/${milestones.length}`,   color:'#4C3A9E' },
           { label:'Open Blockers',value:openBlockers.length,                             color:openBlockers.length>0?'var(--danger)':'var(--text-muted)' },
-        ].map(k => (
+        ].filter(Boolean).map(k => (
           <Card key={k.label} style={{ padding:'12px 14px', borderTop:`3px solid ${k.color}` }}>
             <div style={{ fontSize:20, fontWeight:800, color:k.color, lineHeight:1 }}>{k.value}</div>
             <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>{k.label}</div>
@@ -388,7 +394,7 @@ export default function ProjectDetail() {
 
       {/* ── Tabs ──────────────────────────────────────── */}
       <div style={{ display:'flex', gap:2, background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:4, marginBottom:20, width:'fit-content' }}>
-        {TABS.map(({ key, label, icon:Icon }) => {
+        {visibleTabs.map(({ key, label, icon:Icon }) => {
           const badge = tabBadge(key);
           return (
             <button key={key} onClick={() => setTab(key)} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:7, border:'none', cursor:'pointer', background:tab===key?'#1B2E6B':'transparent', color:tab===key?'#fff':'var(--text-muted)', fontSize:13, fontWeight:tab===key?700:400, transition:'all 0.13s', fontFamily:'var(--font-body)', position:'relative' }}>
@@ -409,7 +415,8 @@ export default function ProjectDetail() {
               {[
                 { label:'Client',      value: client?.name, link: client ? () => navigate(`/clients/${client.id}`) : null },
                 { label:'Category',    value: project.category },
-                { label:'Budget',      value: fmt(totalBudget) },
+                { label:'Budget',      value: canViewFinance ? fmt(totalBudget) : null },
+                { label:'Currency',    value: canViewFinance ? `${projectCurrency?.code || ''} (${projectCurrency?.symbol || ''})` : null },
                 { label:'Start Date',  value: formatDate(project.startDate) },
                 { label:'End Date',    value: formatDate(project.endDate) },
                 { label:'BD Owner',    value: project.bdOwnerName },
@@ -507,14 +514,14 @@ export default function ProjectDetail() {
       )}
 
       {/* ══ PAYMENTS TAB ════════════════════════════════ */}
-      {tab === 'payments' && (
+      {tab === 'payments' && canViewFinance && (
         <div>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
             <div style={{ display:'flex', gap:14 }}>
               <span style={{ fontSize:13 }}>💰 Received: <strong style={{ color:'var(--success)' }}>{fmt(received)}</strong></span>
               <span style={{ fontSize:13 }}>📊 Total: <strong>{fmt(totalBudget)}</strong></span>
             </div>
-            {isManagement && <Btn icon={<Plus size={13}/>} onClick={openAddPayment}>Add Payment</Btn>}
+            {canManage && <Btn icon={<Plus size={13}/>} onClick={openAddPayment}>Add Payment</Btn>}
           </div>
 
           {payments.length === 0
@@ -533,7 +540,7 @@ export default function ProjectDetail() {
                     </div>
                     <span style={{ fontSize:20, fontWeight:800, color:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)' }}>{fmt(pay.amount)}</span>
                     <StatusBadge status={pay.status}/>
-                    {isManagement && <ActionMenu onEdit={() => openEditPayment(pay)} onDelete={() => setConfirmDelPayment(pay.id)}/>}
+                    {canManage && <ActionMenu onEdit={() => openEditPayment(pay)} onDelete={() => setConfirmDelPayment(pay.id)}/>}
                   </Card>
                 ))}
               </div>
@@ -666,8 +673,14 @@ export default function ProjectDetail() {
                   <option value="on-hold">On Hold</option>
                 </select>
               </Field>
-              <Field label="Budget (₹)">
+              <Field label="Budget">
                 <input type="number" value={editForm.budget} onChange={e => setEditForm(f=>({...f,budget:e.target.value}))} style={inputStyle()}/>
+              </Field>
+              <Field label="Currency" required error={editErrors.currencyId}>
+                <select value={editForm.currencyId} onChange={e => setEditForm(f=>({...f,currencyId:e.target.value}))} style={inputStyle(editErrors.currencyId)}>
+                  <option value="">Select currency…</option>
+                  {currencies.map(c => <option key={c.id} value={c.id}>{c.code} ({c.symbol}) — {c.name}</option>)}
+                </select>
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -748,7 +761,7 @@ export default function ProjectDetail() {
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {paymentErrors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:13 }}>{paymentErrors.api}</div>}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Amount (₹)" required error={paymentErrors.amount}>
+              <Field label={`Amount (${projectCurrency?.code || ""})`} required error={paymentErrors.amount}>
                 <input type="number" value={paymentForm.amount} onChange={e => setPaymentForm(f=>({...f,amount:e.target.value}))} placeholder="e.g. 50000" style={inputStyle(paymentErrors.amount)} autoFocus/>
               </Field>
               <Field label="Type">

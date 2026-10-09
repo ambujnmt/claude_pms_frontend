@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card, PageHeader, Btn, Modal, Field, inputStyle, ConfirmModal, ActionMenu, Table, TR, TD, Badge, EmptyState } from '../components/UI';
+import { Card, PageHeader, Btn, Modal, Field, inputStyle, ConfirmModal, ActionMenu, Table, TR, TD, Badge, EmptyState, formatAmount } from '../components/UI';
 import { Plus, Star, Globe } from 'lucide-react';
 import currencyService from '../services/currencyService';
 
@@ -92,8 +92,7 @@ export default function CurrenciesPage() {
 
   /* Preview formatter */
   const preview = (c) => {
-    const num = c.useLakhSystem ? '1.5L' : '1.5K';
-    return c.symbolPosition === 'suffix' ? `${num}${c.symbol}` : `${c.symbol}${num}`;
+    return formatAmount(1500000, c);
   };
 
   return (
@@ -112,7 +111,7 @@ export default function CurrenciesPage() {
         <div>
           <div style={{ fontWeight:700, fontSize:15, color:'#1B2E6B' }}>{activeCurrency.name} ({activeCurrency.code}) — Active Currency</div>
           <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:2 }}>
-            Symbol: <strong>{activeCurrency.symbol}</strong> · Position: <strong>{activeCurrency.symbolPosition}</strong> · Format: <strong>{activeCurrency.useLakhSystem ? 'Lakh system (L, K)' : 'International (M, K)'}</strong>
+            Symbol: <strong>{activeCurrency.symbol}</strong> · Position: <strong>{activeCurrency.symbolPosition}</strong> · Format: <strong>{activeCurrency.useLakhSystem ? 'Lakh grouping (12,34,567)' : 'International grouping (1,234,567)'}</strong>
           </div>
         </div>
       </div>
@@ -133,7 +132,7 @@ export default function CurrenciesPage() {
               <TD><Badge label={c.code} color="#1B2E6B"/></TD>
               <TD><span style={{ fontSize:18, fontWeight:700 }}>{c.symbol}</span></TD>
               <TD><span style={{ color:'var(--text-muted)', textTransform:'capitalize' }}>{c.symbolPosition}</span></TD>
-              <TD><span style={{ color:'var(--text-muted)' }}>{c.useLakhSystem ? 'Lakh (L, K, Cr)' : 'International (M, K)'}</span></TD>
+              <TD><span style={{ color:'var(--text-muted)' }}>{c.useLakhSystem ? 'Lakh grouping (12,34,567)' : 'International (1,234,567)'}</span></TD>
               <TD><span style={{ fontWeight:700, color:'#2E6DB4', fontSize:15 }}>{preview(c)}</span></TD>
               <TD>
                 {c.isDefault
@@ -154,8 +153,9 @@ export default function CurrenciesPage() {
         <div style={{ fontSize:14, color:'var(--text-muted)', lineHeight:1.8 }}>
           • The <strong>default currency</strong> is used to display all amounts across the entire application.<br/>
           • Click <strong>Set Default</strong> on any currency to switch the display across all pages instantly.<br/>
-          • <strong>Lakh system</strong> formats amounts as: ₹1.5L (1,50,000), ₹50K (50,000), ₹2.5Cr (2,50,00,000).<br/>
-          • <strong>International system</strong> formats as: $1.5M, $50K.
+          • Amounts always show the full exact number — never abbreviated.<br/>
+          • <strong>Lakh grouping</strong> formats as: ₹1,50,000 and ₹2,50,00,000.<br/>
+          • <strong>International grouping</strong> formats as: $150,000 and $1,500,000.
         </div>
       </Card>
 
@@ -203,8 +203,8 @@ export default function CurrenciesPage() {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <Field label="Number Format">
                 <select value={form.useLakhSystem ? 'lakh' : 'intl'} onChange={e => set('useLakhSystem', e.target.value === 'lakh')} style={inputStyle()}>
-                  <option value="intl">International (1.5M, 50K)</option>
-                  <option value="lakh">Lakh System (1.5L, 50K, 2.5Cr)</option>
+                  <option value="intl">International (1,500,000)</option>
+                  <option value="lakh">Lakh (15,00,000)</option>
                 </select>
               </Field>
               <Field label="Status">
@@ -219,7 +219,7 @@ export default function CurrenciesPage() {
             <div style={{ padding:'12px 16px', borderRadius:8, background:'#EDF4FB', border:'1px solid #2E6DB4' }}>
               <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:4 }}>Live Preview</div>
               <div style={{ fontSize:22, fontWeight:700, color:'#2E6DB4' }}>{preview(form)}</div>
-              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>Sample: 1,500 → {preview({ ...form, useLakhSystem: form.useLakhSystem })}</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>Sample: 1500000 → {preview({ ...form, useLakhSystem: form.useLakhSystem })}</div>
             </div>
           </div>
         </Modal>
