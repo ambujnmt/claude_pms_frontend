@@ -97,7 +97,9 @@ export default function MaintenanceDetail() {
     load();
   }, [id]);
 
-  const client = svc ? clients.find(c => c.id === svc.clientId || c.id === parseInt(svc.clientId)) : null;
+  const clientRecord = svc ? clients.find(c => c.id === svc.clientId || c.id === parseInt(svc.clientId)) : null;
+  // Roles without client access get an empty client list - fall back to the name embedded in the contract
+  const client = clientRecord || (svc?.client ? { id: svc.client.id, name: svc.client.name, noAccess: true } : null);
   const currency = svc?.currency || activeCurrency;
   const resources = svc ? (svc.resources || users.filter(u => (svc.resourceIds || []).includes(u.id))) : [];
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -154,7 +156,7 @@ export default function MaintenanceDetail() {
     <div style={{ textAlign:'center', padding:40 }}>
       <div style={{ fontSize:32, marginBottom:12 }}>⚠️</div>
       <div style={{ fontSize:16, color:'var(--text-muted)', marginBottom:20 }}>{error || 'Contract not found.'}</div>
-      <Btn onClick={() => navigate('/maintenance')}>← Back to Maintenance</Btn>
+      <Btn onClick={() => navigate('/maintenance')}>← Back to Digital Projects</Btn>
     </div>
   );
 
@@ -176,7 +178,7 @@ export default function MaintenanceDetail() {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
           <button onClick={() => navigate('/maintenance')} style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:7, border:'1px solid var(--border)', background:'var(--bg-elevated)', color:'var(--text-muted)', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-            <ArrowLeft size={13}/> Maintenance
+            <ArrowLeft size={13}/> Digital Projects
           </button>
           <div>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -185,7 +187,7 @@ export default function MaintenanceDetail() {
               <StatusBadge status={svc.status}/>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:5, alignItems:'center' }}>
-              {client && <span onClick={() => navigate(`/clients/${client.id}`)} style={{ fontSize:13, color:'#2E6DB4', fontWeight:600, cursor:'pointer' }}>{client.name}</span>}
+              {client && <span onClick={() => clientRecord && navigate(`/clients/${client.id}`)} style={{ fontSize:13, color:'#2E6DB4', fontWeight:600, cursor:'pointer' }}>{client.name}</span>}
               <Badge label={svc.contractType || 'Other'} color={tcolor}/>
               {svc.renewalDate && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Renews {formatDate(svc.renewalDate)}</span>}
             </div>
@@ -243,7 +245,7 @@ export default function MaintenanceDetail() {
             <SectionTitle>Contract Details</SectionTitle>
             <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
               {[
-                { label:'Client', value: client?.name, link: client ? () => navigate(`/clients/${client.id}`) : null },
+                { label:'Client', value: client?.name, link: clientRecord ? () => navigate(`/clients/${client.id}`) : null },
                 { label:'Contract Type', value: svc.contractType },
                 { label:'Service', value: svc.serviceType ? `${svc.serviceType.icon || ''} ${svc.serviceType.name}`.trim() : null },
                 { label:'Monthly Amount', value: canViewFinance ? `${formatAmount(svc.monthlyAmount, currency)} ${currency?.code || ''}` : null },
@@ -334,7 +336,7 @@ export default function MaintenanceDetail() {
 
       {/* Edit modal */}
       {showEdit && (
-        <Modal title="Edit Maintenance Contract" subtitle="Recurring service agreement or retainer" onClose={() => setShowEdit(false)} width={600}
+        <Modal title="Edit Digital Project" subtitle="Recurring service agreement or retainer" onClose={() => setShowEdit(false)} width={600}
           footer={<><Btn variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Btn><Btn onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Btn></>}>
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {errors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:14 }}>{errors.api}</div>}

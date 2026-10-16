@@ -17,11 +17,18 @@ import MaintenancePage     from './pages/MaintenancePage';
 import MaintenanceDetail   from './pages/MaintenanceDetail';
 import CurrenciesPage      from './pages/CurrenciesPage';
 import TeamPage            from './pages/TeamPage';
+import TicketsPage         from './pages/TicketsPage';
 
 /* Pages execution roles (developer, designer, ...) must never reach, even by typing the URL */
 function ManagersOnly({ children }) {
   const { canManage } = useAuth();
   return canManage ? children : <Navigate to="/" replace />;
+}
+
+/* Client directory is hidden from developers / designers / marketing, even via URL */
+function ClientsGuard({ children }) {
+  const { canViewClients } = useAuth();
+  return canViewClients ? children : <Navigate to="/" replace />;
 }
 
 function ProtectedLayout() {
@@ -44,8 +51,9 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<ProtectedLayout />}>
               <Route index element={<Dashboard />} />
-              <Route path="clients"          element={<ClientsPage />} />
-              <Route path="clients/:id"      element={<ClientDetail />} />
+              <Route path="clients"          element={<ClientsGuard><ClientsPage /></ClientsGuard>} />
+              <Route path="clients/:id"      element={<ClientsGuard><ClientDetail /></ClientsGuard>} />
+              <Route path="tickets"          element={<TicketsPage />} />
               <Route path="projects"         element={<ProjectsPage />} />
               <Route path="projects/:id"     element={<ProjectDetail />} />
               <Route path="milestones"       element={<MilestonesPage />} />

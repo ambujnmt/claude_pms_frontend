@@ -6,13 +6,13 @@ import {
   ConfirmModal, formatDate, PageHeader, EmptyState,
 } from '../components/UI';
 import { Search, MapPin, Mail, Phone, Building2, Globe, Plus } from 'lucide-react';
-import clientService from '../services/clientService';
+import clientService, { mapClientErrors } from '../services/clientService';
 
 const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Real Estate','HR Tech','Manufacturing','Education','Other'];
-const EMPTY_FORM = { name:'', contactPerson:'', email:'', website:'', phone:'', city:'', industry:'', status:'active', notes:'' };
+const EMPTY_FORM = { name:'', contactPerson:'', email:'', alternateEmail:'', website:'', phone:'', alternatePhone:'', city:'', industry:'', status:'active', notes:'' };
 
 export default function ClientsPage() {
-  const { clients, setClients, projects, clientServices, fmtSum, canManage, canViewFinance, dataLoading } = useApp();
+  const { clients, setClients, projects, clientServices, fmtSum, canManage, canViewFinance, canEditClients, dataLoading } = useApp();
   const navigate = useNavigate();
 
   const [search, setSearch]         = useState('');
@@ -46,13 +46,19 @@ export default function ClientsPage() {
   const openAdd = () => { setForm(EMPTY_FORM); setEditing(null); setErrors({}); setShowModal(true); };
   const openEdit = (e, client) => {
     e.stopPropagation();
-    setForm({ name:client.name||'', contactPerson:client.contactPerson||'', email:client.email||'', website:client.website||'', phone:client.phone||'', city:client.city||'', industry:client.industry||'', status:client.status||'active', notes:client.notes||'' });
+    setForm({ name:client.name||'', contactPerson:client.contactPerson||'', email:client.email||'', alternateEmail:client.alternateEmail||'', website:client.website||'', phone:client.phone||'', alternatePhone:client.alternatePhone||'', city:client.city||'', industry:client.industry||'', status:client.status||'active', notes:client.notes||'' });
     setEditing(client.id); setErrors({}); setShowModal(true);
   };
 
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Required';
+    const em = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (form.email && !em.test(form.email.trim())) e.email = 'Invalid email';
+    if (form.alternateEmail && !em.test(form.alternateEmail.trim())) e.alternateEmail = 'Invalid email';
+    if (form.email && form.alternateEmail && form.email.trim().toLowerCase() === form.alternateEmail.trim().toLowerCase()) e.alternateEmail = 'Must differ from primary email';
+    const digits = v => (v || '').replace(/\D/g, '');
+    if (form.phone && form.alternatePhone && digits(form.phone) === digits(form.alternatePhone)) e.alternatePhone = 'Must differ from primary phone';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -70,8 +76,7 @@ export default function ClientsPage() {
       }
       setShowModal(false);
     } catch (err) {
-      const msgs = err.response?.data?.errors ? Object.values(err.response.data.errors).flat().join(' ') : err.response?.data?.message || 'Failed to save.';
-      setErrors({ api: msgs });
+      setErrors(mapClientErrors(err));
     } finally {
       setSaving(false);
     }
@@ -85,7 +90,7 @@ export default function ClientsPage() {
     setConfirmDel(null);
   };
 
-  const canEdit = canManage;
+  const canEdit = canEditClients;
 
   return (
     <div className="fade-in">
@@ -156,7 +161,7 @@ export default function ClientsPage() {
                 {canEdit && (
                   <div style={{ display:'flex', gap:6 }} onClick={e => e.stopPropagation()}>
                     <button onClick={e => openEdit(e, client)} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid var(--border)', background:'var(--bg-elevated)', color:'#2E6DB4', fontWeight:600, cursor:'pointer' }}>Edit</button>
-                    {canManage && <button onClick={e => { e.stopPropagation(); setConfirmDel(client.id); }} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontWeight:600, cursor:'pointer' }}>Delete</button>}
+                    {canEditClients && <button onClick={e => { e.stopPropagation(); setConfirmDel(client.id); }} style={{ flex:1, padding:'5px 0', fontSize:12, borderRadius:6, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', color:'var(--danger)', fontWeight:600, cursor:'pointer' }}>Delete</button>}
                   </div>
                 )}
               </Card>
@@ -179,8 +184,12 @@ export default function ClientsPage() {
               <Field label="Contact Person"><input value={form.contactPerson} onChange={e => set('contactPerson',e.target.value)} style={inputStyle()}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Email"><input type="email" value={form.email} onChange={e => set('email',e.target.value)} style={inputStyle()}/></Field>
-              <Field label="Phone"><input value={form.phone} onChange={e => set('phone',e.target.value)} style={inputStyle()}/></Field>
+              <Field label="Email" error={errors.email}><input type="email" value={form.email} onChange={e => set('email',e.target.value)} style={inputStyle(errors.email)}/></Field>
+              <Field label="Phone" error={errors.phone}><input value={form.phone} onChange={e => set('phone',e.target.value)} style={inputStyle(errors.phone)}/></Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Alternate Email (optional)" error={errors.alternateEmail}><input type="email" value={form.alternateEmail} onChange={e => set('alternateEmail',e.target.value)} style={inputStyle(errors.alternateEmail)}/></Field>
+              <Field label="Alternate Phone (optional)" error={errors.alternatePhone}><input value={form.alternatePhone} onChange={e => set('alternatePhone',e.target.value)} style={inputStyle(errors.alternatePhone)}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
               <Field label="Website"><input type="url" placeholder="https://example.com" value={form.website} onChange={e => set('website',e.target.value)} style={inputStyle()}/></Field>

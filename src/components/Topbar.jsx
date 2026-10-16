@@ -5,14 +5,15 @@ import { Bell, LogOut } from 'lucide-react';
 const TITLES = {
   '/':             'Dashboard',
   '/clients':      'Clients',
-  '/projects':     'Projects',
+  '/projects':     'Development Projects',
   '/milestones':   'Milestones',
   '/resources':    'Workload',
   '/team':         'Team',
   '/hosting':      'Hosting',
   '/services':     'Services',
   '/categories':   'Categories',
-  '/maintenance':  'Maintenance',
+  '/maintenance':  'Digital Projects',
+  '/tickets':      'Tickets',
   '/currencies':   'Currencies',
 };
 
@@ -21,7 +22,7 @@ export default function Topbar() {
   const loc    = useLocation();
   const title  = TITLES[loc.pathname]
     || (loc.pathname.startsWith('/clients/') ? 'Client Detail'
-    : loc.pathname.startsWith('/maintenance/') ? 'Maintenance Detail' : 'Project Detail');
+    : loc.pathname.startsWith('/maintenance/') ? 'Digital Project Detail' : 'Project Detail');
   const today  = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const urgent = projects.filter(p => p.blockers?.some(b => !b.resolved)).length;
 

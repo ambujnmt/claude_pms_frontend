@@ -72,7 +72,7 @@ export default function MaintenancePage() {
   };
 
   const filtered = clientServices.filter(cs => {
-    const client = clients.find(c => c.id === cs.clientId || c.id === parseInt(cs.clientId));
+    const client = clients.find(c => c.id === cs.clientId || c.id === parseInt(cs.clientId)) || cs.client;
     const matchSearch = !search ||
       cs.name.toLowerCase().includes(search.toLowerCase()) ||
       (client?.name||'').toLowerCase().includes(search.toLowerCase());
@@ -136,9 +136,9 @@ export default function MaintenancePage() {
   return (
     <div className="fade-in">
       <PageHeader
-        title="Maintenance"
+        title="Digital Projects"
         sub="Ongoing retainers and recurring service contracts"
-        action={canEdit && <Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Contract</Btn>}
+        action={canEdit && <Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Digital Project</Btn>}
       />
 
       {/* KPIs */}
@@ -182,12 +182,13 @@ export default function MaintenancePage() {
                 </td></TR>
               )}
               {filtered.map(cs => {
-                const client = clients.find(c => c.id===cs.clientId || c.id===parseInt(cs.clientId));
+                const clientRec = clients.find(c => c.id===cs.clientId || c.id===parseInt(cs.clientId));
+                const client = clientRec || cs.client;
                 const tcolor = TYPE_COLOR[cs.contractType] || 'var(--text-muted)';
                 return (
                   <TR key={cs.id}>
                     <TD>
-                      <div style={{ fontWeight:600, color:'#2E6DB4', cursor:'pointer' }} onClick={() => client && navigate(`/clients/${client.id}`)}>{client?.name || '—'}</div>
+                      <div style={{ fontWeight:600, color:'#2E6DB4', cursor:'pointer' }} onClick={() => clientRec && navigate(`/clients/${clientRec.id}`)}>{client?.name || '—'}</div>
                       {client?.city && <div style={{ fontSize:14, color:'var(--text-muted)', marginTop:2 }}>{client.city}</div>}
                     </TD>
                     <TD><span onClick={() => navigate(`/maintenance/${cs.id}`)} style={{ fontWeight:600, color:'#2E6DB4', cursor:'pointer' }}>{cs.name}</span></TD>
@@ -230,8 +231,8 @@ export default function MaintenancePage() {
 
       {/* Modal */}
       {showModal && (
-        <Modal title={editing?'Edit Contract':'Add Maintenance Contract'} subtitle="Recurring service agreement or retainer" onClose={() => setShowModal(false)} width={600}
-          footer={<><Btn variant="ghost" onClick={() => setShowModal(false)}>Cancel</Btn><Btn onClick={handleSave} disabled={saving}>{saving?'Saving…':editing?'Save Changes':'Add Contract'}</Btn></>}
+        <Modal title={editing?'Edit Contract':'Add Digital Project'} subtitle="Recurring service agreement or retainer" onClose={() => setShowModal(false)} width={600}
+          footer={<><Btn variant="ghost" onClick={() => setShowModal(false)}>Cancel</Btn><Btn onClick={handleSave} disabled={saving}>{saving?'Saving…':editing?'Save Changes':'Add Digital Project'}</Btn></>}
         >
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {errors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:14 }}>{errors.api}</div>}

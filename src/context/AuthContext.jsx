@@ -10,6 +10,14 @@ const AuthContext = createContext(null);
    Keep this list in sync with App\Http\Middleware\EnforceRoleAccess::FULL_ACCESS_ROLES. */
 export const FULL_ACCESS_ROLES = ['super_admin', 'management', 'pm', 'team_lead', 'account_manager', 'bd'];
 
+/* Client directory:
+   - add / edit / delete  -> Super Admin, Management, BD only
+   - view only            -> managers (PM, Team Lead, Account Manager)
+   - everyone else (developer, designer, marketing, ...) has no client access at all.
+   Keep in sync with EnforceRoleAccess::CLIENT_WRITE_ROLES / CLIENT_VIEW_ROLES. */
+export const CLIENT_WRITE_ROLES = ['super_admin', 'management', 'bd'];
+export const CLIENT_VIEW_ROLES  = ['super_admin', 'management', 'bd', 'pm', 'team_lead', 'account_manager'];
+
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -63,13 +71,15 @@ export function AuthProvider({ children }) {
   const canManage    = !!user && FULL_ACCESS_ROLES.includes(user.role);
   const canViewFinance = canManage;
   const isExecution  = !!user && !canManage;
+  const canEditClients = !!user && CLIENT_WRITE_ROLES.includes(user.role);
+  const canViewClients = !!user && CLIENT_VIEW_ROLES.includes(user.role);
 
   return (
     <AuthContext.Provider value={{
       user, loading, error,
       login, logout,
       isSuperAdmin, isManagement, isPM, isBD,
-      canManage, canViewFinance, isExecution,
+      canManage, canViewFinance, isExecution, canEditClients, canViewClients,
       isAuthenticated: !!user,
     }}>
       {children}

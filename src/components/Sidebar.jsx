@@ -1,14 +1,20 @@
+import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, ChevronDown, Code2, LifeBuoy } from 'lucide-react';
 
 // managerOnly: hidden from execution roles (developer, designer, ...)
+// clientsOnly: only roles that may view the client directory
+// children:    renders a collapsible submenu
 const NAV = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard',   exact: true },
-  { to: '/clients',     icon: Users,           label: 'Clients' },
-  { to: '/projects',    icon: FolderKanban,    label: 'Projects' },
+  { to: '/clients',     icon: Users,           label: 'Clients', clientsOnly: true },
+  { key: 'projects',    icon: FolderKanban,    label: 'Projects', children: [
+      { to: '/projects',    icon: Code2,  label: 'Development Project' },
+      { to: '/maintenance', icon: Wrench, label: 'Digital Project' },
+  ]},
   { to: '/milestones',  icon: Milestone,       label: 'Milestones' },
-  { to: '/maintenance', icon: Wrench,          label: 'Maintenance' },
+  { to: '/tickets',     icon: LifeBuoy,        label: 'Tickets' },
   { to: '/resources',   icon: BarChart2,       label: 'Workload', managerOnly: true },
   { to: '/team',        icon: UserCog,         label: 'Team', managerOnly: true },
   { to: '/hosting',     icon: Server,          label: 'Hosting', managerOnly: true },
@@ -18,8 +24,10 @@ const NAV = [
 ];
 
 export default function Sidebar() {
-  const { sidebarOpen, setSidebarOpen, user, isBD, canManage, setShowAddProject, activeCurrency } = useApp();
+  const { sidebarOpen, setSidebarOpen, user, canManage, canViewClients, activeCurrency } = useApp();
   const loc = useLocation();
+  const inProjects = loc.pathname.startsWith('/projects') || loc.pathname.startsWith('/maintenance');
+  const [projectsOpen, setProjectsOpen] = useState(true);
 
   const NAV_BG     = '#1B2E6B';
   const NAV_HOVER  = '#253d8a';
@@ -51,22 +59,52 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Add Project */}
-      {canManage && (
-        <div style={{ padding:sidebarOpen?'10px 12px 0':'10px 8px 0' }}>
-          <button onClick={() => setShowAddProject(true)} style={{ width:'100%', display:'flex', alignItems:'center', gap:8, padding:sidebarOpen?'9px 14px':'9px 0', justifyContent:sidebarOpen?'flex-start':'center', borderRadius:8, border:'1.5px dashed rgba(255,255,255,0.35)', background:'rgba(255,255,255,0.08)', color:'#fff', fontSize:14, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}
-            onMouseEnter={e => { e.currentTarget.style.background='rgba(74,144,217,0.30)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.08)'; }}
-          >
-            <Plus size={16} strokeWidth={2.5}/>
-            {sidebarOpen && 'New Project'}
-          </button>
-        </div>
-      )}
-
       {/* Nav */}
       <nav style={{ flex:1, padding:'12px 10px', display:'flex', flexDirection:'column', gap:3, overflowY:'auto' }}>
-        {NAV.filter(n => canManage || !n.managerOnly).map(({ to, icon:Icon, label, exact }) => {
+        {NAV.filter(n => (canManage || !n.managerOnly) && (canViewClients || !n.clientsOnly)).map((item) => {
+          const { icon:Icon, label } = item;
+
+          /* ── Submenu parent (Projects) ── */
+          if (item.children) {
+            const open = sidebarOpen && (projectsOpen || inProjects);
+            return (
+              <div key={item.key}>
+                <div
+                  onClick={() => sidebarOpen ? setProjectsOpen(o => !o) : null}
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:sidebarOpen?'10px 14px':'10px 0', justifyContent:sidebarOpen?'flex-start':'center', borderRadius:8, background:(!open && inProjects)?NAV_ACTIVE:'transparent', color:inProjects?TEXT_ACTIVE:TEXT_INACTIVE, fontWeight:inProjects?600:500, fontSize:14, cursor:'pointer', transition:'all 0.14s' }}
+                  onMouseEnter={e => { if (!(!open && inProjects)) { e.currentTarget.style.background=NAV_HOVER; e.currentTarget.style.color='#fff'; }}}
+                  onMouseLeave={e => { e.currentTarget.style.background=(!open && inProjects)?NAV_ACTIVE:'transparent'; e.currentTarget.style.color=inProjects?TEXT_ACTIVE:TEXT_INACTIVE; }}
+                >
+                  {sidebarOpen
+                    ? <Icon size={18} strokeWidth={inProjects?2.2:1.8} style={{ flexShrink:0 }}/>
+                    : <NavLink to="/projects" style={{ display:'flex', color:'inherit' }}><Icon size={18} strokeWidth={inProjects?2.2:1.8}/></NavLink>}
+                  {sidebarOpen && <span style={{ flex:1 }}>{label}</span>}
+                  {sidebarOpen && <ChevronDown size={15} style={{ transform:open?'rotate(0deg)':'rotate(-90deg)', transition:'transform 0.15s', opacity:0.8 }}/>}
+                </div>
+                {open && (
+                  <div style={{ marginLeft:20, paddingLeft:8, borderLeft:'1px solid rgba(255,255,255,0.18)', marginTop:3, display:'flex', flexDirection:'column', gap:2 }}>
+                    {item.children.map(({ to, icon:CIcon, label:cLabel }) => {
+                      const active = loc.pathname === to || loc.pathname.startsWith(to + '/');
+                      return (
+                        <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
+                          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:7, background:active?NAV_ACTIVE:'transparent', color:active?TEXT_ACTIVE:TEXT_INACTIVE, fontWeight:active?600:500, fontSize:13.5, transition:'all 0.14s' }}
+                            onMouseEnter={e => { if (!active) { e.currentTarget.style.background=NAV_HOVER; e.currentTarget.style.color='#fff'; }}}
+                            onMouseLeave={e => { if (!active) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color=TEXT_INACTIVE; }}}
+                          >
+                            <CIcon size={15} strokeWidth={active?2.2:1.8} style={{ flexShrink:0 }}/>
+                            {cLabel}
+                          </div>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          /* ── Normal item ── */
+          const { to, exact } = item;
           const active = exact ? loc.pathname === to : loc.pathname.startsWith(to);
           return (
             <NavLink key={to} to={to} style={{ textDecoration:'none' }}>

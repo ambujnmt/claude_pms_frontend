@@ -21,7 +21,7 @@ const DEFAULT_CURRENCY = {
 };
 
 export function AppProvider({ children }) {
-  const { user, isManagement:authIsManagement, isPM:authIsPM, isBD:authIsBD, canManage, canViewFinance, isExecution, logout } = useAuth();
+  const { user, isManagement:authIsManagement, isPM:authIsPM, isBD:authIsBD, canManage, canViewFinance, isExecution, canEditClients, canViewClients, logout } = useAuth();
 
   const [clients,        setClients]        = useState([]);
   const [projects,       setProjects]       = useState([]);
@@ -63,7 +63,8 @@ export function AppProvider({ children }) {
         clientsData, projectsData, servicesData,
         clientServicesData, hostingData, currenciesData, categoriesData, usersData,
       ] = await Promise.all([
-        clientService.getAll().catch(() => []),
+        // Clients are restricted: developers / designers / marketing never receive the client list
+        canViewClients ? clientService.getAll().catch(() => []) : Promise.resolve([]),
         projectService.getAll(),
         serviceTypeService.getAll().catch(() => []),
         clientServiceApi.getAll().catch(() => []),
@@ -83,8 +84,7 @@ export function AppProvider({ children }) {
       };
       const projectsScoped = isExecution ? projectsData.filter(mine) : projectsData;
       const servicesScoped = isExecution ? clientServicesData.filter(mine) : clientServicesData;
-      const visibleClientIds = new Set([...projectsScoped, ...servicesScoped].map(x => String(x.clientId)));
-      const clientsScoped = isExecution ? clientsData.filter(c => visibleClientIds.has(String(c.id))) : clientsData;
+      const clientsScoped = canViewClients ? clientsData : [];
 
       setClients(clientsScoped);
       setProjects(projectsScoped);
@@ -102,7 +102,7 @@ export function AppProvider({ children }) {
     } finally {
       setDataLoading(false);
     }
-  }, [user, isExecution]);
+  }, [user, isExecution, canViewClients]);
 
   useEffect(() => {
     if (user) {
@@ -184,7 +184,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       user, logout,
-      isManagement, isPM, isBD, canManage, canViewFinance, isExecution,
+      isManagement, isPM, isBD, canManage, canViewFinance, isExecution, canEditClients, canViewClients,
       dataLoading, dataError, loadAllData,
 
       currencies, setCurrencies,

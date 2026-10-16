@@ -11,7 +11,7 @@ import {
   ArrowLeft, Building2, Mail, Phone, MapPin, Globe,
   FolderKanban, Wrench, Server, Edit2, Plus, Trash2,
 } from 'lucide-react';
-import clientService     from '../services/clientService';
+import clientService, { mapClientErrors }     from '../services/clientService';
 import clientServiceApi  from '../services/clientServiceApi';
 
 const TABS = [
@@ -37,7 +37,7 @@ export default function ClientDetail() {
     hostingProjects,
     serviceTypes,
     currencies, activeCurrency, users,
-    fmtFor, fmtSum, canManage, canViewFinance,
+    fmtFor, fmtSum, canManage, canViewFinance, canEditClients,
   } = useApp();
 
   const [tab, setTab]       = useState('overview');
@@ -103,8 +103,10 @@ export default function ClientDetail() {
       name:          client.name          || '',
       contactPerson: client.contactPerson || '',
       email:         client.email         || '',
+      alternateEmail: client.alternateEmail || '',
       website:       client.website       || '',
       phone:         client.phone         || '',
+      alternatePhone: client.alternatePhone || '',
       city:          client.city          || '',
       industry:      client.industry      || '',
       status:        client.status        || 'active',
@@ -123,8 +125,7 @@ export default function ClientDetail() {
       setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
       setShowEdit(false);
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to save.';
-      setEditErrors({ api: msg });
+      setEditErrors(mapClientErrors(err));
     } finally {
       setEditSaving(false);
     }
@@ -229,7 +230,7 @@ export default function ClientDetail() {
             </div>
           </div>
         </div>
-        {canEdit && (
+        {canEditClients && (
           <Btn icon={<Edit2 size={13}/>} onClick={openEditClient}>Edit Client</Btn>
         )}
       </div>
@@ -274,7 +275,9 @@ export default function ClientDetail() {
               {[
                 { icon: Building2, label:'Contact Person', value: client.contactPerson },
                 { icon: Mail,      label:'Email',          value: client.email },
+                { icon: Mail,      label:'Alternate Email', value: client.alternateEmail },
                 { icon: Phone,     label:'Phone',          value: client.phone },
+                { icon: Phone,     label:'Alternate Phone', value: client.alternatePhone },
                 { icon: MapPin,    label:'City',           value: client.city },
                 { icon: Globe,     label:'Industry',       value: client.industry },
               ].map(row => row.value ? (
@@ -466,11 +469,19 @@ export default function ClientDetail() {
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Email">
-                <input type="email" value={editForm.email||''} onChange={e => setEditForm(f=>({...f,email:e.target.value}))} style={inputStyle()}/>
+              <Field label="Email" error={editErrors.email}>
+                <input type="email" value={editForm.email||''} onChange={e => setEditForm(f=>({...f,email:e.target.value}))} style={inputStyle(editErrors.email)}/>
               </Field>
-              <Field label="Phone">
-                <input value={editForm.phone||''} onChange={e => setEditForm(f=>({...f,phone:e.target.value}))} style={inputStyle()}/>
+              <Field label="Phone" error={editErrors.phone}>
+                <input value={editForm.phone||''} onChange={e => setEditForm(f=>({...f,phone:e.target.value}))} style={inputStyle(editErrors.phone)}/>
+              </Field>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="Alternate Email (optional)" error={editErrors.alternateEmail}>
+                <input type="email" value={editForm.alternateEmail||''} onChange={e => setEditForm(f=>({...f,alternateEmail:e.target.value}))} style={inputStyle(editErrors.alternateEmail)}/>
+              </Field>
+              <Field label="Alternate Phone (optional)" error={editErrors.alternatePhone}>
+                <input value={editForm.alternatePhone||''} onChange={e => setEditForm(f=>({...f,alternatePhone:e.target.value}))} style={inputStyle(editErrors.alternatePhone)}/>
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
