@@ -18,6 +18,8 @@ import MaintenanceDetail   from './pages/MaintenanceDetail';
 import CurrenciesPage      from './pages/CurrenciesPage';
 import TeamPage            from './pages/TeamPage';
 import TicketsPage         from './pages/TicketsPage';
+import DomainsPage         from './pages/DomainsPage';
+import ProfilePage         from './pages/ProfilePage';
 
 /* Pages execution roles (developer, designer, ...) must never reach, even by typing the URL */
 function ManagersOnly({ children }) {
@@ -54,6 +56,8 @@ export default function App() {
               <Route path="clients"          element={<ClientsGuard><ClientsPage /></ClientsGuard>} />
               <Route path="clients/:id"      element={<ClientsGuard><ClientDetail /></ClientsGuard>} />
               <Route path="tickets"          element={<TicketsPage />} />
+              <Route path="profile"          element={<ProfilePage />} />
+              <Route path="domains" element={<ManagersOnly><DomainsPage /></ManagersOnly>} />
               <Route path="projects"         element={<ProjectsPage />} />
               <Route path="projects/:id"     element={<ProjectDetail />} />
               <Route path="milestones"       element={<MilestonesPage />} />

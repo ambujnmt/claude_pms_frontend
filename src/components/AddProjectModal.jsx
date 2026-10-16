@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Modal, Field, inputStyle, Btn } from './UI';
-import UserMultiSelect from './UserMultiSelect';
+import ResourcePicker from './ResourcePicker';
 import { Plus, Trash2 } from 'lucide-react';
 import projectService from '../services/projectService';
 
@@ -202,9 +202,7 @@ export default function AddProjectModal() {
               </select>
             </Field>
           </div>
-          <Field label="Resources (developers, designers, QA, etc.)">
-            <UserMultiSelect users={users} value={form.resources} onChange={(v) => set('resources', v)} placeholder="Search team members to assign…" />
-          </Field>
+          <ResourcePicker label="Resources (developers, designers, QA, etc.)" value={form.resources} onChange={(v) => set('resources', v)} />
         </div>
       )}
 

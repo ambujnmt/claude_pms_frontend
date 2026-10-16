@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Card, Btn, Modal, Field, inputStyle, ConfirmModal,
   PageHeader, ActionMenu, Badge, EmptyState, Table, TR, TD,
+  Avatar,
 } from '../components/UI';
 import { Plus, Search, Users } from 'lucide-react';
+import teamService from '../services/teamService';
 import userService from '../services/userService';
 
 export const ROLES = [
@@ -27,7 +29,12 @@ export const ROLES = [
 export const roleLabel = (value) => ROLES.find(r => r.value === value)?.label || value;
 export const roleColor = (value) => ROLES.find(r => r.value === value)?.color || 'var(--text-muted)';
 
-const EMPTY = { name:'', email:'', password:'', role:'developer', avatar:'', isActive:true };
+const EMPTY = { name:'', email:'', password:'', role:'developer', avatar:'', isActive:true, managerId:'' };
+
+/* roles that can own a team - the project Resources picker of these roles lists only their reports */
+const TEAM_OWNER_ROLES = ['pm', 'team_lead', 'account_manager'];
+/* roles that never report to a manager */
+const NO_MANAGER_ROLES = ['super_admin', 'management', 'pm', 'team_lead', 'account_manager', 'bd'];
 
 export default function TeamPage() {
   const { users, setUsers, isManagement, user: currentUser, dataLoading } = useApp();
@@ -43,6 +50,15 @@ export default function TeamPage() {
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+  /* reporting lines (who reports to which manager) - editable by Super Admin / Management */
+  const [managerOf, setManagerOf] = useState({});          // { userId: managerId }
+  useEffect(() => {
+    if (!isManagement) return;
+    teamService.structure().then(rows => setManagerOf(Object.fromEntries(rows.map(r => [r.id, r.managerId])))).catch(() => {});
+  }, [isManagement, users.length]);
+  const managers = users.filter(u => TEAM_OWNER_ROLES.includes(u.role) && u.is_active !== false);
+  const managerName = (uid) => users.find(u => u.id === managerOf[uid])?.name;
+
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
     const ms = !search || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
@@ -51,7 +67,7 @@ export default function TeamPage() {
 
   const openAdd = () => { setForm(EMPTY); setEditing(null); setErrors({}); setShowModal(true); };
   const openEdit = (u) => {
-    setForm({ name:u.name, email:u.email, password:'', role:u.role, avatar:u.avatar||'', isActive:u.is_active });
+    setForm({ name:u.name, email:u.email, password:'', role:u.role, avatar:u.avatar||'', isActive:u.is_active, managerId: managerOf[u.id] || '' });
     setEditing(u.id); setErrors({}); setShowModal(true);
   };
 
@@ -65,6 +81,15 @@ export default function TeamPage() {
     return Object.keys(e).length === 0;
   };
 
+  /* persist "Reports to" when it changed (non-manager roles only) */
+  const saveManager = async (userId) => {
+    if (!isManagement) return;
+    const want = NO_MANAGER_ROLES.includes(form.role) ? '' : (form.managerId || '');
+    if (String(want) === String(managerOf[userId] || '')) return;
+    await teamService.setManager(userId, want || null);
+    setManagerOf(prev => ({ ...prev, [userId]: want ? parseInt(want) : null }));
+  };
+
   const handleSave = async () => {
     if (!validate()) return;
     setSaving(true);
@@ -72,9 +97,11 @@ export default function TeamPage() {
       if (editing) {
         const updated = await userService.update(editing, form);
         setUsers(prev => prev.map(u => u.id === editing ? updated : u));
+        await saveManager(editing);
       } else {
         const created = await userService.create(form);
         setUsers(prev => [...prev, created]);
+        await saveManager(created.id);
       }
       setShowModal(false);
     } catch (err) {
@@ -94,8 +121,6 @@ export default function TeamPage() {
     }
     setConfirmDel(null);
   };
-
-  const initials = (u) => u.avatar || u.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
 
   return (
     <div className="fade-in">
@@ -121,17 +146,18 @@ export default function TeamPage() {
         {dataLoading ? (
           <div style={{ padding:28, textAlign:'center', color:'var(--text-muted)', fontSize:14 }}>Loading team…</div>
         ) : (
-          <Table headers={['Name','Email','Role','Status', isManagement?'Actions':'']}>
+          <Table headers={['Name','Email','Role', ...(isManagement?['Reports To']:[]), 'Status', isManagement?'Actions':'']}>
             {filtered.map(u => (
               <TR key={u.id}>
                 <TD>
                   <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-                    <div style={{ width:30, height:30, borderRadius:'50%', background:roleColor(u.role), display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff', flexShrink:0 }}>{initials(u)}</div>
+                    <Avatar user={u} size={30} bg={roleColor(u.role)}/>
                     <span style={{ fontWeight:600 }}>{u.name}{u.id === currentUser?.id && <span style={{ fontSize:11, color:'var(--text-muted)', fontWeight:400 }}> (you)</span>}</span>
                   </div>
                 </TD>
                 <TD><span style={{ color:'var(--text-muted)' }}>{u.email}</span></TD>
                 <TD><Badge label={roleLabel(u.role)} color={roleColor(u.role)}/></TD>
+                {isManagement && <TD><span style={{ color:'var(--text-muted)' }}>{managerName(u.id) || '—'}</span></TD>}
                 <TD><Badge label={u.is_active ? 'Active' : 'Inactive'} color={u.is_active ? 'var(--success)' : 'var(--text-muted)'}/></TD>
                 {isManagement && (
                   <TD>
@@ -180,7 +206,17 @@ export default function TeamPage() {
               </Field>
             </div>
 
-            <Field label="Avatar Initials (optional)">
+            {isManagement && !NO_MANAGER_ROLES.includes(form.role) && (
+              <Field label="Reports to (manager)">
+                <select value={form.managerId || ''} onChange={e => set('managerId', e.target.value)} style={inputStyle()}>
+                  <option value="">— Not assigned —</option>
+                  {managers.map(m => <option key={m.id} value={m.id}>{m.name} · {roleLabel(m.role)}</option>)}
+                </select>
+                <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:5 }}>This manager will see this person in the project “Resources” list.</div>
+              </Field>
+            )}
+
+            <Field label="Avatar Initials (optional — your uploaded photo takes priority)">
               <input value={form.avatar} onChange={e => set('avatar', e.target.value.toUpperCase().slice(0,3))} placeholder="Auto-generated if left blank" style={inputStyle()}/>
             </Field>
           </div>

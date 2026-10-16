@@ -4,8 +4,9 @@ import { useApp } from '../context/AppContext';
 import {
   Card, StatusBadge, Badge, Btn, Modal, Field, inputStyle, ConfirmModal,
   formatDate, EmptyState, SectionTitle, formatAmount, calcRenewalDate,
+  Avatar,
 } from '../components/UI';
-import UserMultiSelect from '../components/UserMultiSelect';
+import ResourcePicker from '../components/ResourcePicker';
 import { ArrowLeft, Edit2, Trash2, CalendarClock, FileText, Wrench } from 'lucide-react';
 import clientServiceApi from '../services/clientServiceApi';
 
@@ -63,7 +64,6 @@ function upcomingReportDates(day, count = 6) {
   return out;
 }
 const ordinal = (n) => { n = parseInt(n); if (n % 10 === 1 && n !== 11) return 'st'; if (n % 10 === 2 && n !== 12) return 'nd'; if (n % 10 === 3 && n !== 13) return 'rd'; return 'th'; };
-const initials = (u) => u.avatar || (u.name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
 export default function MaintenanceDetail() {
   const { id } = useParams();
@@ -276,7 +276,7 @@ export default function MaintenanceDetail() {
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                     {resources.map(u => (
                       <div key={u.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px 4px 4px', borderRadius:16, background:'var(--bg-elevated)', border:'1px solid var(--border)' }}>
-                        <div style={{ width:22, height:22, borderRadius:'50%', background:'#2E6DB4', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{initials(u)}</div>
+                        <Avatar user={u} size={22}/>
                         <span style={{ fontSize:13, fontWeight:600 }}>{u.name}</span>
                         <span style={{ fontSize:11, color:'var(--text-muted)', textTransform:'capitalize' }}>· {(u.role||'').replace(/_/g,' ')}</span>
                       </div>
@@ -394,9 +394,7 @@ export default function MaintenanceDetail() {
                 {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </Field>
-            <Field label="Resources (developers, designers, SEO, QA, etc.)">
-              <UserMultiSelect users={users} value={form.resources || []} onChange={v => set('resources', v)} placeholder="Search team members to assign…"/>
-            </Field>
+            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" value={form.resources || []} onChange={v => set('resources', v)} />
             <Field label="Notes">
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} style={{ ...inputStyle(), resize:'vertical' }}/>
             </Field>

@@ -10,6 +10,7 @@ import hostingService     from '../services/hostingService';
 import currencyService    from '../services/currencyService';
 import categoryService    from '../services/categoryService';
 import userService        from '../services/userService';
+import teamService        from '../services/teamService';
 
 const AppContext = createContext(null);
 
@@ -21,7 +22,7 @@ const DEFAULT_CURRENCY = {
 };
 
 export function AppProvider({ children }) {
-  const { user, isManagement:authIsManagement, isPM:authIsPM, isBD:authIsBD, canManage, canViewFinance, isExecution, canEditClients, canViewClients, logout } = useAuth();
+  const { user, isManagement:authIsManagement, isPM:authIsPM, isBD:authIsBD, canManage, canViewFinance, isExecution, canEditClients, canViewClients, canAssignResources, logout } = useAuth();
 
   const [clients,        setClients]        = useState([]);
   const [projects,       setProjects]       = useState([]);
@@ -30,6 +31,7 @@ export function AppProvider({ children }) {
   const [serviceTypes,   setServiceTypes]   = useState([]);
   const [categories,     setCategories]     = useState([]);
   const [users,          setUsers]          = useState([]);
+  const [resourceOptions, setResourceOptions] = useState([]);   // team members the logged-in manager may assign to projects
   const [currencies,     setCurrencies]     = useState([DEFAULT_CURRENCY]);
   const [activeCurrency, setActiveCurrency] = useState(DEFAULT_CURRENCY);
 
@@ -95,6 +97,7 @@ export function AppProvider({ children }) {
       if (currenciesData.default) setActiveCurrency(currenciesData.default);
       setCategories(categoriesData);
       setUsers(usersData);
+      setResourceOptions(canAssignResources ? await teamService.myTeam().catch(() => []) : []);
 
     } catch (err) {
       console.error('Failed to load app data:', err);
@@ -102,7 +105,7 @@ export function AppProvider({ children }) {
     } finally {
       setDataLoading(false);
     }
-  }, [user, isExecution, canViewClients]);
+  }, [user, isExecution, canViewClients, canAssignResources]);
 
   useEffect(() => {
     if (user) {
@@ -184,7 +187,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       user, logout,
-      isManagement, isPM, isBD, canManage, canViewFinance, isExecution, canEditClients, canViewClients,
+      isManagement, isPM, isBD, canManage, canViewFinance, isExecution, canEditClients, canViewClients, canAssignResources, resourceOptions,
       dataLoading, dataError, loadAllData,
 
       currencies, setCurrencies,

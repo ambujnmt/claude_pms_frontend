@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Search, Check } from 'lucide-react';
+import { Avatar } from './UI';
 
 /* Props:
  *  users     — full list of user objects { id, name, avatar, role }
@@ -18,15 +19,13 @@ export default function UserMultiSelect({ users, value = [], onChange, roleFilte
     onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
   };
 
-  const initials = (u) => u.avatar || u.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-
   return (
     <div>
       {selectedUsers.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           {selectedUsers.map(u => (
             <span key={u.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 4px', borderRadius: 14, background: 'var(--accent-dim)', border: '1px solid #2E6DB430', fontSize: 12, fontWeight: 600, color: '#2E6DB4' }}>
-              <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#2E6DB4', color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{initials(u)}</span>
+              <Avatar user={u} size={18}/>
               {u.name}
               <span onClick={() => toggle(u.id)} style={{ cursor: 'pointer', marginLeft: 2, opacity: 0.6, fontWeight: 800 }}>×</span>
             </span>
@@ -52,7 +51,7 @@ export default function UserMultiSelect({ users, value = [], onChange, roleFilte
               <div style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${checked ? '#2E6DB4' : 'var(--border)'}`, background: checked ? '#2E6DB4' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 {checked && <Check size={11} color="#fff" />}
               </div>
-              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>{initials(u)}</div>
+              <Avatar user={u} size={22} bg="var(--bg-elevated)" color="var(--text-muted)"/>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{(u.role || '').replace(/_/g, ' ')}</div>

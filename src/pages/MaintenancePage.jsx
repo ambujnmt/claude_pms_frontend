@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card, PageHeader, Table, TR, TD, Badge, StatusBadge, ActionMenu, Modal, Field, inputStyle, Btn, ConfirmModal, formatDate, EmptyState, formatAmount, calcRenewalDate } from '../components/UI';
-import UserMultiSelect from '../components/UserMultiSelect';
+import ResourcePicker from '../components/ResourcePicker';
 import { Plus, Wrench, TrendingUp, Users, AlertCircle } from 'lucide-react';
 import clientServiceApi from '../services/clientServiceApi';
 
@@ -304,9 +304,7 @@ export default function MaintenancePage() {
                 {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </Field>
-            <Field label="Resources (developers, designers, SEO, QA, etc.)">
-              <UserMultiSelect users={users} value={form.resources||[]} onChange={v => set('resources', v)} placeholder="Search team members to assign…"/>
-            </Field>
+            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" value={form.resources||[]} onChange={v => set('resources', v)} />
             <Field label="Notes">
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Scope, SLA details…" style={{ ...inputStyle(), resize:'vertical' }}/>
             </Field>

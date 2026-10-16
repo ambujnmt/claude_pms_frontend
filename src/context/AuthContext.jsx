@@ -18,6 +18,10 @@ export const FULL_ACCESS_ROLES = ['super_admin', 'management', 'pm', 'team_lead'
 export const CLIENT_WRITE_ROLES = ['super_admin', 'management', 'bd'];
 export const CLIENT_VIEW_ROLES  = ['super_admin', 'management', 'bd', 'pm', 'team_lead', 'account_manager'];
 
+/* Who may add / edit the Resources (developers, designers, QA...) on a project.
+   Keep in sync with ProjectController::RESOURCE_MANAGER_ROLES. */
+export const RESOURCE_MANAGER_ROLES = ['super_admin', 'management', 'pm', 'team_lead', 'account_manager'];
+
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +75,7 @@ export function AuthProvider({ children }) {
   const canManage    = !!user && FULL_ACCESS_ROLES.includes(user.role);
   const canViewFinance = canManage;
   const isExecution  = !!user && !canManage;
+  const canAssignResources = !!user && RESOURCE_MANAGER_ROLES.includes(user.role);
   const canEditClients = !!user && CLIENT_WRITE_ROLES.includes(user.role);
   const canViewClients = !!user && CLIENT_VIEW_ROLES.includes(user.role);
 
@@ -79,7 +84,8 @@ export function AuthProvider({ children }) {
       user, loading, error,
       login, logout,
       isSuperAdmin, isManagement, isPM, isBD,
-      canManage, canViewFinance, isExecution, canEditClients, canViewClients,
+      canManage, canViewFinance, isExecution, canEditClients, canViewClients, canAssignResources,
+      patchUser: (partial) => setUser(prev => prev ? { ...prev, ...partial } : prev),
       isAuthenticated: !!user,
     }}>
       {children}

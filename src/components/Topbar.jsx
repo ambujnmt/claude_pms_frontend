@@ -1,6 +1,8 @@
 import { useApp } from '../context/AppContext';
 import { useLocation } from 'react-router-dom';
 import { Bell, LogOut } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Avatar } from './UI';
 
 const TITLES = {
   '/':             'Dashboard',
@@ -14,12 +16,15 @@ const TITLES = {
   '/categories':   'Categories',
   '/maintenance':  'Digital Projects',
   '/tickets':      'Tickets',
+  '/profile':      'Profile Settings',
+  '/domains':      'Domains',
   '/currencies':   'Currencies',
 };
 
 export default function Topbar() {
   const { user, logout, projects } = useApp();
   const loc    = useLocation();
+  const navigate = useNavigate();
   const title  = TITLES[loc.pathname]
     || (loc.pathname.startsWith('/clients/') ? 'Client Detail'
     : loc.pathname.startsWith('/maintenance/') ? 'Digital Project Detail' : 'Project Detail');
@@ -41,8 +46,8 @@ export default function Topbar() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', borderRadius: 7, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#2E6DB4', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>{user.avatar}</div>
+          <div onClick={() => navigate('/profile')} title="My profile" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', borderRadius: 7, background: 'var(--bg-elevated)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+            <Avatar user={user} size={26}/>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.2 }}>{user.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{(user.role||'').replace(/_/g,' ')}</div>

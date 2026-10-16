@@ -4,12 +4,14 @@ import { useApp } from '../context/AppContext';
 import {
   Card, StatusBadge, ProgressBar, Badge, Btn, Modal, Field,
   inputStyle, ConfirmModal, ActionMenu, formatDate, EmptyState, SectionTitle,
+  Avatar,
 } from '../components/UI';
-import UserMultiSelect from '../components/UserMultiSelect';
+import ResourcePicker from '../components/ResourcePicker';
+import ProjectDocuments from '../components/ProjectDocuments';
 import {
   ArrowLeft, Edit2, AlertCircle, Trophy,
   CreditCard, Milestone, Calendar, Target,
-  Plus, Trash2, CheckCheck,
+  Plus, Trash2, CheckCheck, Paperclip,
 } from 'lucide-react';
 import projectService from '../services/projectService';
 
@@ -19,6 +21,7 @@ const TABS = [
   { key:'payments',      label:'Payments',     icon:CreditCard },
   { key:'blockers',      label:'Blockers',     icon:AlertCircle },
   { key:'achievements',  label:'Wins',         icon:Trophy },
+  { key:'documents',     label:'Documents',    icon:Paperclip },
 ];
 
 const MILESTONE_STATUSES = ['upcoming','in-progress','completed','on-hold','overdue'];
@@ -47,7 +50,7 @@ export default function ProjectDetail() {
   const { id }       = useParams();
   const navigate     = useNavigate();
   const {
-    projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance,
+    projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance, user,
   } = useApp();
 
   const [project, setProject] = useState(null);
@@ -323,7 +326,6 @@ export default function ProjectDetail() {
 
   const tabBadge = (key) => key === 'blockers' && openBlockers.length > 0 ? openBlockers.length : null;
 
-  const initials = (u) => u.avatar || u.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
 
   return (
     <div className="fade-in">
@@ -438,7 +440,7 @@ export default function ProjectDetail() {
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                     {resources.map(u => (
                       <div key={u.id} style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px 4px 4px', borderRadius:16, background:'var(--bg-elevated)', border:'1px solid var(--border)' }}>
-                        <div style={{ width:22, height:22, borderRadius:'50%', background:'#2E6DB4', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{initials(u)}</div>
+                        <Avatar user={u} size={22}/>
                         <span style={{ fontSize:13, fontWeight:600 }}>{u.name}</span>
                         <span style={{ fontSize:11, color:'var(--text-muted)', textTransform:'capitalize' }}>· {(u.role||'').replace(/_/g,' ')}</span>
                       </div>
@@ -607,6 +609,11 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {/* ══ DOCUMENTS TAB ═══════════════════════════════ */}
+      {tab === 'documents' && (
+        <ProjectDocuments projectId={project.id} canManage={canManage} currentUserId={user?.id}/>
+      )}
+
       {/* ══ ACHIEVEMENTS TAB ════════════════════════════ */}
       {tab === 'achievements' && (
         <div>
@@ -705,9 +712,7 @@ export default function ProjectDetail() {
             </div>
 
             {/* Resources multi-select */}
-            <Field label="Resources (developers, designers, QA, etc.)">
-              <UserMultiSelect users={users} value={editForm.resources||[]} onChange={(v) => setEditForm(f=>({...f,resources:v}))} placeholder="Search team members to assign…" />
-            </Field>
+            <ResourcePicker label="Resources (developers, designers, QA, etc.)" value={editForm.resources||[]} onChange={(v) => setEditForm(f=>({...f,resources:v}))} />
 
             <Field label="Description">
               <textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={2} style={{...inputStyle(),resize:'vertical'}}/>

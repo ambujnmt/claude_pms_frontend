@@ -6,7 +6,7 @@ import {
   inputStyle, ConfirmModal, ActionMenu, formatDate, EmptyState, SectionTitle,
   formatAmount, calcRenewalDate,
 } from '../components/UI';
-import UserMultiSelect from '../components/UserMultiSelect';
+import ResourcePicker from '../components/ResourcePicker';
 import {
   ArrowLeft, Building2, Mail, Phone, MapPin, Globe,
   FolderKanban, Wrench, Server, Edit2, Plus, Trash2,
@@ -580,9 +580,7 @@ export default function ClientDetail() {
                 {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </Field>
-            <Field label="Resources (developers, designers, SEO, QA, etc.)">
-              <UserMultiSelect users={users} value={svcForm.resources||[]} onChange={v => setSvcForm(f=>({...f,resources:v}))} placeholder="Search team members to assign…"/>
-            </Field>
+            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" value={svcForm.resources||[]} onChange={v => setSvcForm(f=>({...f,resources:v}))} />
             <Field label="Notes">
               <textarea value={svcForm.notes||''} onChange={e => setSvcForm(f=>({...f,notes:e.target.value}))} rows={2} style={{...inputStyle(), resize:'vertical'}} placeholder="Scope details, SLA…"/>
             </Field>

@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, ProgressBar, Badge, formatDate, PageHeader, EmptyState } from '../components/UI';
+import { Card, ProgressBar, Badge, formatDate, PageHeader, EmptyState, Avatar } from '../components/UI';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Users, TrendingUp, AlertOctagon, Calendar, Briefcase } from 'lucide-react';
 
 export default function ResourcesPage() {
-  const { projects, categories, fmtSum, dataLoading } = useApp();
+  const { projects, categories, fmtSum, users, dataLoading } = useApp();
+  const person = (name) => users.find(u => u.name === name) || { name };
   const navigate = useNavigate();
 
   /* ── Active projects only feed the workload/distribution views ── */
@@ -118,9 +119,7 @@ export default function ResourcesPage() {
                   <div key={t.name}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <div style={{ width:28, height:28, borderRadius:'50%', background:'#2E6DB4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff' }}>
-                          {t.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
-                        </div>
+                        <Avatar user={person(t.name)} size={28}/>
                         <span style={{ fontSize:14, fontWeight:600 }}>{t.name}</span>
                       </div>
                       <div style={{ display:'flex', gap:10, alignItems:'center' }}>
@@ -172,9 +171,7 @@ export default function ResourcesPage() {
                 {bdWorkload.map(b => (
                   <div key={b.name} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 12px', borderRadius:8, background:'var(--bg-elevated)' }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <div style={{ width:26, height:26, borderRadius:'50%', background:'#4C3A9E', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#fff' }}>
-                        {b.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
-                      </div>
+                      <Avatar user={person(b.name)} size={26} bg="#4C3A9E"/>
                       <span style={{ fontSize:14, fontWeight:600 }}>{b.name}</span>
                     </div>
                     <div style={{ display:'flex', gap:8, alignItems:'center' }}>

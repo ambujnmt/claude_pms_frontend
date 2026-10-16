@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Avatar } from './UI';
 import { useApp } from '../context/AppContext';
-import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, ChevronDown, Code2, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, ChevronDown, Code2, LifeBuoy, Globe } from 'lucide-react';
 
 // managerOnly: hidden from execution roles (developer, designer, ...)
 // clientsOnly: only roles that may view the client directory
@@ -15,9 +16,10 @@ const NAV = [
   ]},
   { to: '/milestones',  icon: Milestone,       label: 'Milestones' },
   { to: '/tickets',     icon: LifeBuoy,        label: 'Tickets' },
-  { to: '/resources',   icon: BarChart2,       label: 'Workload', managerOnly: true },
   { to: '/team',        icon: UserCog,         label: 'Team', managerOnly: true },
+  { to: '/resources',   icon: BarChart2,       label: 'Workload', managerOnly: true },
   { to: '/hosting',     icon: Server,          label: 'Hosting', managerOnly: true },
+  { to: '/domains',     icon: Globe,           label: 'Domain', managerOnly: true },
   { to: '/services',    icon: Layers,          label: 'Services', managerOnly: true },
   { to: '/currencies',  icon: DollarSign,      label: 'Currencies', managerOnly: true },
   { to: '/categories',  icon: Tag,             label: 'Categories', managerOnly: true },
@@ -26,6 +28,7 @@ const NAV = [
 export default function Sidebar() {
   const { sidebarOpen, setSidebarOpen, user, canManage, canViewClients, activeCurrency } = useApp();
   const loc = useLocation();
+  const navigate = useNavigate();
   const inProjects = loc.pathname.startsWith('/projects') || loc.pathname.startsWith('/maintenance');
   const [projectsOpen, setProjectsOpen] = useState(true);
 
@@ -120,16 +123,16 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User */}
-      {sidebarOpen && (
-        <div style={{ padding:'14px 16px', borderTop:'1px solid rgba(255,255,255,0.12)', display:'flex', alignItems:'center', gap:10 }}>
-          <div style={{ width:34, height:34, borderRadius:'50%', background:'#4A90D9', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:'#fff' }}>{user?.avatar}</div>
+      {/* User - click to open profile settings */}
+      <div onClick={() => navigate('/profile')} title="Profile settings" style={{ padding:sidebarOpen?'14px 16px':'14px 0', borderTop:'1px solid rgba(255,255,255,0.12)', display:'flex', alignItems:'center', justifyContent:sidebarOpen?'flex-start':'center', gap:10, cursor:'pointer' }}>
+        <Avatar user={user} size={34} bg="#4A90D9" fontSize={12}/>
+        {sidebarOpen && (
           <div style={{ overflow:'hidden' }}>
             <div style={{ fontSize:14, fontWeight:600, color:'#fff', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{user?.name}</div>
             <div style={{ fontSize:12, color:'rgba(255,255,255,0.55)', marginTop:2, textTransform:'capitalize' }}>{(user?.role||'').replace(/_/g,' ')}</div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Toggle */}
       <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ position:'absolute', right:-12, top:'50%', transform:'translateY(-50%)', width:24, height:24, borderRadius:'50%', background:'#2E6DB4', border:'2px solid #1B2E6B', boxShadow:'0 2px 8px rgba(27,46,107,0.4)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', cursor:'pointer', zIndex:20 }}>

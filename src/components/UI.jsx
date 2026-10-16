@@ -1,4 +1,28 @@
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
+
+// ─── Avatar ──────────────────────────────────────────────────────
+// Shows the uploaded profile photo when there is one, otherwise the initials badge.
+export function userInitials(u) {
+  const raw = u?.avatar || (u?.name || '').split(' ').filter(Boolean).map(w => w[0]).join('');
+  return (raw || '?').slice(0, 2).toUpperCase();
+}
+export function avatarSrc(u) {
+  return u?.avatarUrl || u?.avatar_url || null;
+}
+export function Avatar({ user, size = 30, bg = '#2E6DB4', color = '#fff', fontSize, style = {} }) {
+  const [broken, setBroken] = useState(false);
+  const src = avatarSrc(user);
+  const base = { width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', ...style };
+  if (src && !broken) {
+    return <img src={src} alt={user?.name || ''} onError={() => setBroken(true)} style={{ ...base, objectFit: 'cover', display: 'block', background: 'var(--bg-elevated)' }} />;
+  }
+  return (
+    <div style={{ ...base, background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: fontSize || Math.max(9, Math.round(size * 0.38)), fontWeight: 700 }}>
+      {userInitials(user)}
+    </div>
+  );
+}
 
 // ─── Card ────────────────────────────────────────────────────────
 export function Card({ children, style = {}, hover, onClick }) {
