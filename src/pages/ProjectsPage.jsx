@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { isSeoCategory, projectTypeOf } from '../utils/projectTypes';
 import {
   Card, StatusBadge, ProgressBar, Badge, Btn, Modal, Field,
   inputStyle, ConfirmModal, PageHeader, EmptyState, formatDate,
@@ -15,8 +16,13 @@ const BD_ROLES = ['bd', 'management', 'super_admin'];
 const PM_ROLES = ['pm', 'management', 'super_admin'];
 
 export default function ProjectsPage() {
-  const { projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance, showAddProject, setShowAddProject, dataLoading } = useApp();
+  const { projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance, showAddProject, openAddProject, dataLoading } = useApp();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const typeKey = ['web', 'mobile'].includes(params.get('type')) ? params.get('type') : null;   // from the sidebar sub-menu
+  const typeLabel = typeKey === 'web' ? 'Web' : typeKey === 'mobile' ? 'Mobile' : null;
+  // SEO is a Digital service - not offered as a Project category
+  const devCategories = categories.filter(c => !isSeoCategory(c.name) && (!typeKey || projectTypeOf(c.name) === typeKey));
 
   const [search, setSearch]       = useState('');
   const [filterStatus, setStatus] = useState('all');
@@ -30,7 +36,9 @@ export default function ProjectsPage() {
 
   const catColor = (name) => categories.find(c => c.name === name)?.color || '#2E6DB4';
 
-  const filtered = projects.filter(p => {
+  const typeProjects = typeKey ? projects.filter(p => projectTypeOf(p.category) === typeKey) : projects;
+
+  const filtered = typeProjects.filter(p => {
     const q = search.toLowerCase();
     const ms = !search || p.name.toLowerCase().includes(q) || (p.client||'').toLowerCase().includes(q);
     return ms && (filterStatus==='all'||p.status===filterStatus) && (filterCat==='all'||p.category===filterCat);
@@ -76,8 +84,8 @@ export default function ProjectsPage() {
   return (
     <div className="fade-in">
       <PageHeader
-        sub={`${projects.length} project${projects.length!==1?'s':''} total`}
-        action={canManage && <Btn icon={<Plus size={14}/>} onClick={() => setShowAddProject(true)}>New Project</Btn>}
+        sub={`${typeProjects.length} ${typeLabel ? typeLabel.toLowerCase() + ' ' : ''}project${typeProjects.length!==1?'s':''} total`}
+        action={canManage && <Btn icon={<Plus size={14}/>} onClick={() => openAddProject(typeKey)}>{typeLabel ? `New ${typeLabel} Project` : 'New Project'}</Btn>}
       />
 
       {/* Filters */}
@@ -87,8 +95,8 @@ export default function ProjectsPage() {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects…" style={{ background:'none', border:'none', outline:'none', fontSize:14, flex:1, fontFamily:'var(--font-body)' }}/>
         </div>
         <Pills options={['all','active','completed','on-hold']} value={filterStatus} onChange={setStatus}/>
-        <Pills options={['all', ...categories.map(c=>c.name)]} value={filterCat} onChange={setCat}/>
-        <span style={{ fontSize:13, color:'var(--text-muted)' }}>{filtered.length} of {projects.length}</span>
+        <Pills options={['all', ...devCategories.map(c=>c.name)]} value={filterCat} onChange={setCat}/>
+        <span style={{ fontSize:13, color:'var(--text-muted)' }}>{filtered.length} of {typeProjects.length}</span>
       </div>
 
       {dataLoading && (
@@ -170,7 +178,8 @@ export default function ProjectsPage() {
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
               <Field label="Category">
                 <select value={editForm.category} onChange={e=>eSet('category',e.target.value)} style={inputStyle()}>
-                  {categories.map(c=><option key={c.id} value={c.name}>{c.icon?`${c.icon} `:''}{c.name}</option>)}
+                  {categories.filter(c => !isSeoCategory(c.name)).map(c=><option key={c.id} value={c.name}>{c.icon?`${c.icon} `:''}{c.name}</option>)}
+                  {isSeoCategory(editForm.category) && <option value={editForm.category}>{editForm.category} (legacy)</option>}
                 </select>
               </Field>
               <Field label="Status"><select value={editForm.status} onChange={e=>eSet('status',e.target.value)} style={inputStyle()}><option value="active">Active</option><option value="completed">Completed</option><option value="on-hold">On Hold</option></select></Field>

@@ -44,6 +44,7 @@ function toSnake(c) {
     phone:          c.phone         || null,
     alternate_phone: c.alternatePhone || null,
     city:           c.city          || null,
+    address:        c.address       || null,
     industry:       c.industry      || null,
     status:         c.status        || 'active',
     notes:          c.notes         || null,

@@ -1,19 +1,20 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { Card, StatusBadge, ProgressBar, Badge, formatDate, PageHeader } from '../components/UI';
+import { Card, StatusBadge, ProgressBar, Badge, formatDate, PageHeader, Btn } from '../components/UI';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   AlertTriangle, Trophy, TrendingUp, CalendarCheck,
-  FolderKanban, CheckCircle2, Wallet, Users,
+  FolderKanban, CheckCircle2, Wallet, Users, 
 } from 'lucide-react';
+import { projectTypeOf } from '../utils/projectTypes';
 
 const NAVY = '#1B2E6B';
 const BLUE = '#2E6DB4';
 const SKY  = '#4A90D9';
 
 export default function Dashboard() {
-  const { projects, clients, clientServices, categories, fmtFor, fmtSum, canViewFinance, canViewClients, dataLoading } = useApp();
+  const { projects, clients, clientServices, categories, fmtFor, fmtParts, canManage, canViewFinance, canViewClients, dataLoading } = useApp();
   const navigate = useNavigate();
 
   /* ── Core project stats ────────────────────────────────────── */
@@ -36,32 +37,43 @@ export default function Dashboard() {
       .slice(0, 5)
   , [projects]);
 
-  /* ── Payment health — real, computed from every project's payments ── */
-  const allPayments = useMemo(() => projects.flatMap(p => (p.payments || []).map(pay => ({ ...pay, projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId }))), [projects]);
-  const receivedList = allPayments.filter(p => p.status === 'received');
-  const now = new Date();
-  const overduePayments = allPayments.filter(p => p.status !== 'received' && p.date && new Date(p.date) < now);
-  const upcomingPayments = allPayments
-    .filter(p => p.status !== 'received' && p.date && new Date(p.date) >= now)
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(0, 5);
-  const pendingList    = allPayments.filter(p => p.status !== 'received');
-  // Each project's money is shown in ITS OWN currency; mixed currencies are listed side by side, never summed together
+  /* ── Payment status for the CURRENT BILLING CYCLE ──────────────────
+     Office billing runs from the 15th of one month to the 15th of the next
+     (before the 15th we are still in the cycle that began on the 15th of last month).
+     A cycle covers  start <= date < next start,  so a payment dated on the 15th belongs to the new cycle.
+     Amounts of different currencies are never added together - each currency gets its own line. */
+  const localDate = (str) => { const [y, m, d] = String(str).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+  const today = useMemo(() => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }, []);
+  const cycle = useMemo(() => {
+    const start = today.getDate() >= 15 ? new Date(today.getFullYear(), today.getMonth(), 15) : new Date(today.getFullYear(), today.getMonth() - 1, 15);
+    const end   = new Date(start.getFullYear(), start.getMonth() + 1, 15);
+    return { start, end };
+  }, [today]);
+  const cycleFmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const cycleTitle = `Payment Status Current Cycle (${cycleFmt(cycle.start)} - ${cycleFmt(cycle.end)})`;
+
+  const allPayments = useMemo(() => projects.flatMap(p => (p.payments || [])
+    .filter(pay => pay.date)
+    .map(pay => ({ ...pay, due: localDate(pay.date), projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId }))), [projects]);
+
+  const inCycle = (p) => p.due >= cycle.start && p.due < cycle.end;
+  const unpaid  = allPayments.filter(p => p.status !== 'received');
+
+  const receivedInCycle = allPayments.filter(p => p.status === 'received' && inCycle(p));
+  const pendingInCycle  = unpaid.filter(p => inCycle(p) && p.due >= today);      // still to come this cycle
+  const overduePayments = unpaid.filter(p => p.due < today);                    // unpaid and past due date (any cycle)
+  const upcomingPayments = unpaid.filter(p => p.due >= today).sort((a, b) => a.due - b.due).slice(0, 5);
   const amt = (p) => p.amount;
 
   /* ── Client stats ──────────────────────────────────────────── */
   const activeServicesCount = clientServices.filter(cs => cs.status === 'active').length;
 
-  /* ── Active work by project type: Development / Digital ─────────────
-     Development = active rows on the Projects (Development Project) page
-     Digital     = active recurring contracts on the Digital Project page
-                   (formerly "Maintenance") */
-  const activeDevelopment = projects.filter(p => p.status === 'active').length;
-  const activeDigital     = clientServices.filter(cs => cs.status === 'active').length;
-  const breakdown = [
-    { label: 'Development', value: activeDevelopment, color: NAVY, to: '/projects' },
-    { label: 'Digital',     value: activeDigital,     color: BLUE, to: '/maintenance' },
-  ];
+  /* ── Active projects by type: Web · Mobile · Digital ─────────────────
+     Web / Mobile = active rows on the Projects page, split by their category.
+     Digital      = active recurring contracts (Digital page) + any Digital-category projects. */
+  const activeCounts = { web: 0, mobile: 0, digital: 0 };
+  projects.filter(p => p.status === 'active').forEach(p => { activeCounts[projectTypeOf(p.category)]++; });
+  activeCounts.digital += clientServices.filter(cs => cs.status === 'active').length;
 
   /* ── Category distribution ────────────────────────────────── */
   const categoryData = useMemo(() =>
@@ -88,14 +100,19 @@ export default function Dashboard() {
     <div className="fade-in">
       <PageHeader sub="Overview of all projects, clients, and delivery health" />
 
-      {/* ── KPI cards (clickable) ───────────────────────────────── */}
+      {/* ── KPI cards (clickable). Active Projects shows Web · Mobile · Digital ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
-        <KpiCard icon={<FolderKanban size={17}/>}  label="Active Projects" value={activeDevelopment + activeDigital} sub={`${completed} projects completed`} breakdown={breakdown} accent={NAVY} light="#EEF2FA" to="/projects"    navigate={navigate}/>
-        <KpiCard icon={<TrendingUp size={17}/>}    label="Avg Completion"  value={`${avgCompletion}%`}  sub="across active projects"                                                accent={BLUE} light="#EDF4FB" to="/milestones"  navigate={navigate}/>
+        <KpiCard icon={<FolderKanban size={17}/>} label="Active Projects" sub={`${completed} projects completed`} accent={NAVY} light="#EEF2FA" to="/projects?type=web" navigate={navigate}
+          breakdown={[
+            { label:'Web',     value:activeCounts.web,     color:NAVY,      to:'/projects?type=web' },
+            { label:'Mobile',  value:activeCounts.mobile,  color:BLUE,      to:'/projects?type=mobile' },
+            { label:'Digital', value:activeCounts.digital, color:'#1A6B3C', to:'/maintenance' },
+          ]}/>
+        <KpiCard icon={<TrendingUp size={17}/>}    label="Avg Completion"  value={`${avgCompletion}%`}  sub="across active projects" accent={BLUE} light="#EDF4FB" to={canManage ? '/milestones' : '/projects'}  navigate={navigate}/>
         {canViewClients
           ? <KpiCard icon={<Users size={17}/>}         label="Total Clients"   value={clients.length}       sub={`${activeServicesCount} active service${activeServicesCount!==1?'s':''}`} accent={SKY}  light="#EBF4FA" to="/clients"     navigate={navigate}/>
           : <KpiCard icon={<CheckCircle2 size={17}/>}  label="Completed"       value={completed}            sub="projects delivered" accent={SKY}  light="#EBF4FA" to="/projects"    navigate={navigate}/>}
-        <KpiCard icon={<AlertTriangle size={17}/>} label="Open Blockers"   value={blockers.length}      sub="needing attention"                                                     accent={blockers.length?'var(--danger)':BLUE} light={blockers.length?'#FEF2F2':'#EDF4FB'} to="/projects" navigate={navigate}/>
+        <KpiCard icon={<AlertTriangle size={17}/>} label="Open Blockers"   value={blockers.length}      sub="needing attention" accent={blockers.length?'var(--danger)':BLUE} light={blockers.length?'#FEF2F2':'#EDF4FB'} to="/projects" navigate={navigate}/>
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns: canViewFinance ? '1.3fr 1fr' : '1fr', gap:16, marginBottom:16 }}>
@@ -103,18 +120,22 @@ export default function Dashboard() {
         {/* ── Payment health — managers only; execution roles never see money ── */}
         {canViewFinance && <Card>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-            <div style={{ fontSize:15, fontWeight:700, color:NAVY }}>Payment Health</div>
+            <div style={{ fontSize:15, fontWeight:700, color:NAVY }}>{cycleTitle}</div>
             <Wallet size={16} color="var(--text-muted)"/>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:16 }}>
-            <MiniStat label="Received"  value={fmtSum(receivedList, amt)}     color="var(--success)"/>
-            <MiniStat label="Pending"   value={fmtSum(pendingList, amt)}      color="var(--warning)"/>
-            <MiniStat label="Overdue"   value={fmtSum(overduePayments, amt)}  color={overduePayments.length>0?'var(--danger)':'var(--text-muted)'}/>
+            <MiniStat label="Total Received In Current Cycle" parts={fmtParts(receivedInCycle, amt)} color="var(--success)"/>
+            <MiniStat label="Total Pending In Current Cycle"  parts={fmtParts(pendingInCycle, amt)}  color="var(--warning)"/>
+            <MiniStat label="Total Overdue Amount"            parts={fmtParts(overduePayments, amt)} color={overduePayments.length>0?'var(--danger)':'var(--text-muted)'}/>
           </div>
 
-          {upcomingPayments.length > 0 && (
-            <>
-              <div style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>Next Payments Due</div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px' }}>Next Payments Due</div>
+            <Btn variant="ghost" size="sm" onClick={() => navigate('/milestones')}>View All →</Btn>
+          </div>
+          {upcomingPayments.length === 0
+            ? <div style={{ fontSize:13, color:'var(--text-muted)', textAlign:'center', padding:'10px 0' }}>No upcoming payments scheduled.</div>
+            : (
               <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
                 {upcomingPayments.map(p => (
                   <div key={p.id} onClick={() => navigate(`/projects/${p.projectId}`)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 10px', borderRadius:7, background:'var(--bg-elevated)', cursor:'pointer', fontSize:13 }}>
@@ -126,11 +147,7 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            </>
-          )}
-          {upcomingPayments.length === 0 && overduePayments.length === 0 && (
-            <div style={{ fontSize:13, color:'var(--text-muted)', textAlign:'center', padding:'10px 0' }}>No pending payments scheduled.</div>
-          )}
+            )}
         </Card>}
 
         {/* ── Project status breakdown ────────────────────────── */}
@@ -276,11 +293,18 @@ function KpiCard({ icon, label, value, sub, accent, light, to, navigate, breakdo
   );
 }
 
-function MiniStat({ label, value, color }) {
+function MiniStat({ label, parts, color }) {
+  // one line per currency - different currencies are listed, never added together
   return (
     <div style={{ textAlign:'center', padding:'10px 6px', borderRadius:9, background:'var(--bg-elevated)' }}>
-      <div style={{ fontSize:16, fontWeight:800, color }}>{value}</div>
-      <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3 }}>{label}</div>
+      {parts.length === 0
+        ? <div style={{ fontSize:16, fontWeight:800, color:'var(--text-muted)' }}>0</div>
+        : parts.map(p => (
+            <div key={p.code + p.text} style={{ fontSize:parts.length > 1 ? 14 : 16, fontWeight:800, color, lineHeight:1.35 }}>
+              {p.text}{parts.length > 1 && p.code && <span style={{ fontSize:10, fontWeight:600, color:'var(--text-muted)', marginLeft:4 }}>{p.code}</span>}
+            </div>
+          ))}
+      <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5, lineHeight:1.3 }}>{label}</div>
     </div>
   );
 }

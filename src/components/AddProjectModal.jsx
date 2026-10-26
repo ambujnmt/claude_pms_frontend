@@ -1,3 +1,4 @@
+import { categoryForType, isSeoCategory } from '../utils/projectTypes';
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Modal, Field, inputStyle, Btn } from './UI';
@@ -11,10 +12,12 @@ const COLORS = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B
 const BD_ROLES = ['bd', 'management', 'super_admin'];
 
 export default function AddProjectModal() {
-  const { setShowAddProject, setProjects, user, clients, categories, users, currencies, activeCurrency } = useApp();
+  const { setShowAddProject, addProjectType, setProjects, user, clients, categories, users, currencies, activeCurrency } = useApp();
+  // SEO is a Digital service, not a Web/Mobile project category
+  const devCategories = categories.filter(c => !isSeoCategory(c.name));
 
   const EMPTY = {
-    name: '', clientId: '', category: categories[0]?.name || 'Website',
+    name: '', clientId: '', category: categoryForType(addProjectType, categories) || devCategories[0]?.name || 'Website',
     budget: '', currencyId: activeCurrency?.id || '', startDate: '', endDate: '',
     bdOwner: BD_ROLES.includes(user?.role) ? (user?.id || '') : '',
     pmOwner: '',
@@ -151,9 +154,9 @@ export default function AddProjectModal() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <Field label="Category">
               <select value={form.category} onChange={e => set('category', e.target.value)} style={inputStyle()}>
-                {categories.length === 0
+                {devCategories.length === 0
                   ? <option value={form.category}>{form.category}</option>
-                  : categories.map(c => <option key={c.id} value={c.name}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>)
+                  : devCategories.map(c => <option key={c.id} value={c.name}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>)
                 }
               </select>
             </Field>

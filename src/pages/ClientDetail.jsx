@@ -107,6 +107,7 @@ export default function ClientDetail() {
       website:       client.website       || '',
       phone:         client.phone         || '',
       alternatePhone: client.alternatePhone || '',
+      address:       client.address       || '',
       city:          client.city          || '',
       industry:      client.industry      || '',
       status:        client.status        || 'active',
@@ -278,7 +279,8 @@ export default function ClientDetail() {
                 { icon: Mail,      label:'Alternate Email', value: client.alternateEmail },
                 { icon: Phone,     label:'Phone',          value: client.phone },
                 { icon: Phone,     label:'Alternate Phone', value: client.alternatePhone },
-                { icon: MapPin,    label:'City',           value: client.city },
+                { icon: MapPin,    label:'City/Country',   value: client.city },
+                { icon: MapPin,    label:'Address',        value: client.address },
                 { icon: Globe,     label:'Industry',       value: client.industry },
               ].map(row => row.value ? (
                 <div key={row.label} style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
@@ -485,7 +487,7 @@ export default function ClientDetail() {
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="City">
+              <Field label="City/Country">
                 <input value={editForm.city||''} onChange={e => setEditForm(f=>({...f,city:e.target.value}))} style={inputStyle()}/>
               </Field>
               <Field label="Industry">
@@ -502,6 +504,9 @@ export default function ClientDetail() {
                 </select>
               </Field>
             </div>
+            <Field label="Address (optional)">
+              <textarea value={editForm.address||''} onChange={e => setEditForm(f=>({...f,address:e.target.value}))} rows={2} placeholder="Street, area, postal code…" style={{...inputStyle(), resize:'vertical'}}/>
+            </Field>
             <Field label="Notes">
               <textarea value={editForm.notes||''} onChange={e => setEditForm(f=>({...f,notes:e.target.value}))} rows={3} style={{...inputStyle(), resize:'vertical'}}/>
             </Field>

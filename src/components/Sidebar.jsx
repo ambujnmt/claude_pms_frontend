@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar } from './UI';
 import { useApp } from '../context/AppContext';
-import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, ChevronDown, Code2, LifeBuoy, Globe } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, ChevronDown, Code2, LifeBuoy, Globe, Smartphone } from 'lucide-react';
 
 // managerOnly: hidden from execution roles (developer, designer, ...)
 // clientsOnly: only roles that may view the client directory
@@ -11,10 +11,11 @@ const NAV = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard',   exact: true },
   { to: '/clients',     icon: Users,           label: 'Clients', clientsOnly: true },
   { key: 'projects',    icon: FolderKanban,    label: 'Projects', children: [
-      { to: '/projects',    icon: Code2,  label: 'Development Project' },
-      { to: '/maintenance', icon: Wrench, label: 'Digital Project' },
+      { to: '/projects?type=web',    icon: Globe,      label: 'Web',     match: (p, q) => p.startsWith('/projects') && q.get('type') === 'web' },
+      { to: '/projects?type=mobile', icon: Smartphone, label: 'Mobile',  match: (p, q) => p.startsWith('/projects') && q.get('type') === 'mobile' },
+      { to: '/maintenance',          icon: Wrench,     label: 'Digital', match: (p) => p.startsWith('/maintenance') },
   ]},
-  { to: '/milestones',  icon: Milestone,       label: 'Milestones' },
+  { to: '/milestones',  icon: Milestone,       label: 'Milestones', managerOnly: true },   // hidden from resources (developers, designers...) for now
   { to: '/tickets',     icon: LifeBuoy,        label: 'Tickets' },
   { to: '/team',        icon: UserCog,         label: 'Team', managerOnly: true },
   { to: '/resources',   icon: BarChart2,       label: 'Workload', managerOnly: true },
@@ -86,8 +87,8 @@ export default function Sidebar() {
                 </div>
                 {open && (
                   <div style={{ marginLeft:20, paddingLeft:8, borderLeft:'1px solid rgba(255,255,255,0.18)', marginTop:3, display:'flex', flexDirection:'column', gap:2 }}>
-                    {item.children.map(({ to, icon:CIcon, label:cLabel }) => {
-                      const active = loc.pathname === to || loc.pathname.startsWith(to + '/');
+                    {item.children.map(({ to, icon:CIcon, label:cLabel, match }) => {
+                      const active = match(loc.pathname, new URLSearchParams(loc.search));
                       return (
                         <NavLink key={to} to={to} style={{ textDecoration:'none' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:7, background:active?NAV_ACTIVE:'transparent', color:active?TEXT_ACTIVE:TEXT_INACTIVE, fontWeight:active?600:500, fontSize:13.5, transition:'all 0.14s' }}

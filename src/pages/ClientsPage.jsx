@@ -9,7 +9,7 @@ import { Search, MapPin, Mail, Phone, Building2, Globe, Plus } from 'lucide-reac
 import clientService, { mapClientErrors } from '../services/clientService';
 
 const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Real Estate','HR Tech','Manufacturing','Education','Other'];
-const EMPTY_FORM = { name:'', contactPerson:'', email:'', alternateEmail:'', website:'', phone:'', alternatePhone:'', city:'', industry:'', status:'active', notes:'' };
+const EMPTY_FORM = { name:'', contactPerson:'', email:'', alternateEmail:'', website:'', phone:'', alternatePhone:'', address:'', city:'', industry:'', status:'active', notes:'' };
 
 export default function ClientsPage() {
   const { clients, setClients, projects, clientServices, fmtSum, canManage, canViewFinance, canEditClients, dataLoading } = useApp();
@@ -46,7 +46,7 @@ export default function ClientsPage() {
   const openAdd = () => { setForm(EMPTY_FORM); setEditing(null); setErrors({}); setShowModal(true); };
   const openEdit = (e, client) => {
     e.stopPropagation();
-    setForm({ name:client.name||'', contactPerson:client.contactPerson||'', email:client.email||'', alternateEmail:client.alternateEmail||'', website:client.website||'', phone:client.phone||'', alternatePhone:client.alternatePhone||'', city:client.city||'', industry:client.industry||'', status:client.status||'active', notes:client.notes||'' });
+    setForm({ name:client.name||'', contactPerson:client.contactPerson||'', email:client.email||'', alternateEmail:client.alternateEmail||'', website:client.website||'', phone:client.phone||'', alternatePhone:client.alternatePhone||'', address:client.address||'', city:client.city||'', industry:client.industry||'', status:client.status||'active', notes:client.notes||'' });
     setEditing(client.id); setErrors({}); setShowModal(true);
   };
 
@@ -195,7 +195,7 @@ export default function ClientsPage() {
               <Field label="Website"><input type="url" placeholder="https://example.com" value={form.website} onChange={e => set('website',e.target.value)} style={inputStyle()}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="City"><input value={form.city} onChange={e => set('city',e.target.value)} style={inputStyle()}/></Field>
+              <Field label="City/Country"><input value={form.city} onChange={e => set('city',e.target.value)} style={inputStyle()}/></Field>
               <Field label="Industry">
                 <select value={form.industry} onChange={e => set('industry',e.target.value)} style={inputStyle()}>
                   <option value="">Select…</option>
@@ -210,6 +210,7 @@ export default function ClientsPage() {
                 </select>
               </Field>
             </div>
+            <Field label="Address (optional)"><textarea value={form.address} onChange={e => set('address',e.target.value)} rows={2} placeholder="Street, area, postal code…" style={{...inputStyle(),resize:'vertical'}}/></Field>
             <Field label="Notes"><textarea value={form.notes} onChange={e => set('notes',e.target.value)} rows={3} style={{...inputStyle(),resize:'vertical'}}/></Field>
           </div>
         </Modal>

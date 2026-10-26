@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { formatAmount, formatTotals } from '../components/UI';
+import { formatAmount, formatTotals, totalsParts } from '../components/UI';
 
 import clientService      from '../services/clientService';
 import projectService     from '../services/projectService';
@@ -40,6 +40,8 @@ export function AppProvider({ children }) {
 
   const [sidebarOpen,     setSidebarOpen]     = useState(true);
   const [showAddProject,  setShowAddProject]  = useState(false);
+  const [addProjectType,  setAddProjectType]  = useState(null);   // 'web' | 'mobile' | null - pre-selects the category
+  const openAddProject = (type = null) => { setAddProjectType(type); setShowAddProject(true); };
 
   const isManagement = authIsManagement;
   const isPM         = authIsPM;
@@ -54,6 +56,8 @@ export function AppProvider({ children }) {
   [currencies, activeCurrency]);
   const fmtFor = useCallback((entity, value) => formatAmount(value, currencyOf(entity)), [currencyOf]);
   /* Aggregate across entities WITHOUT mixing currencies: "$1.0K + ₹4.5L" */
+  // one entry per currency, e.g. [{code:'AUD', text:'A$9,000'}, {code:'USD', text:'$16,850'}]
+  const fmtParts = useCallback((items, getAmount) => totalsParts(items, getAmount, currencyOf), [currencyOf]);
   const fmtSum = useCallback((items, getAmount) => formatTotals(items, getAmount, currencyOf, formatAmount(0, activeCurrency)), [currencyOf, activeCurrency]);
 
   const loadAllData = useCallback(async () => {
@@ -192,7 +196,7 @@ export function AppProvider({ children }) {
 
       currencies, setCurrencies,
       activeCurrency, setActiveCurrency,
-      fmt, currencyOf, fmtFor, fmtSum,
+      fmt, currencyOf, fmtFor, fmtSum, fmtParts,
       addCurrency, updateCurrency, deleteCurrency, setDefaultCurrency,
 
       categories, setCategories,
@@ -208,7 +212,7 @@ export function AppProvider({ children }) {
       serviceTypes,   setServiceTypes,
 
       sidebarOpen, setSidebarOpen,
-      showAddProject, setShowAddProject,
+      showAddProject, setShowAddProject, addProjectType, openAddProject,
 
       addClient, updateClient, deleteClient,
       addServiceType, updateServiceType, deleteServiceType,

@@ -60,7 +60,7 @@ export default function App() {
               <Route path="domains" element={<ManagersOnly><DomainsPage /></ManagersOnly>} />
               <Route path="projects"         element={<ProjectsPage />} />
               <Route path="projects/:id"     element={<ProjectDetail />} />
-              <Route path="milestones"       element={<MilestonesPage />} />
+              <Route path="milestones" element={<ManagersOnly><MilestonesPage /></ManagersOnly>} />
               <Route path="resources" element={<ManagersOnly><ResourcesPage /></ManagersOnly>} />
               <Route path="team" element={<ManagersOnly><TeamPage /></ManagersOnly>} />
               <Route path="categories" element={<ManagersOnly><CategoryPage /></ManagersOnly>} />

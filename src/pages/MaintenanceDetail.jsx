@@ -336,7 +336,7 @@ export default function MaintenanceDetail() {
 
       {/* Edit modal */}
       {showEdit && (
-        <Modal title="Edit Digital Project" subtitle="Recurring service agreement or retainer" onClose={() => setShowEdit(false)} width={600}
+        <Modal title="Edit Contract" subtitle="Recurring service agreement or retainer" onClose={() => setShowEdit(false)} width={600}
           footer={<><Btn variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Btn><Btn onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Changes'}</Btn></>}>
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {errors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:14 }}>{errors.api}</div>}

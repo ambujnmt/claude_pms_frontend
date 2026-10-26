@@ -276,7 +276,7 @@ export function calcRenewalDate(startDate, billingCycle) {
 // Sum amounts per currency and render "$1.0K + ₹4.5L". Used for every aggregate so amounts
 // in different project currencies are never added together as if they were the same unit.
 // items: any list; getAmount(item) -> number; getCurrency(item) -> currency object
-export function formatTotals(items, getAmount, getCurrency, empty = '—') {
+export function totalsParts(items, getAmount, getCurrency) {
   const buckets = new Map();
   items.forEach(it => {
     const amt = Number(getAmount(it)) || 0;
@@ -286,8 +286,16 @@ export function formatTotals(items, getAmount, getCurrency, empty = '—') {
     b.total += amt;
     buckets.set(key, b);
   });
-  const parts = [...buckets.values()].filter(b => b.total !== 0).map(b => formatAmount(b.total, b.cur));
-  return parts.length ? parts.join(' + ') : empty;
+  return [...buckets.values()]
+    .filter(b => b.total !== 0)
+    .map(b => ({ code: b.cur?.code || '', total: b.total, text: formatAmount(b.total, b.cur) }));
+}
+
+// Same as totalsParts but as one string. Different currencies are separated with " · " (never "+"),
+// because they are different units and are NOT added together.
+export function formatTotals(items, getAmount, getCurrency, empty = '—') {
+  const parts = totalsParts(items, getAmount, getCurrency);
+  return parts.length ? parts.map(p => p.text).join(' · ') : empty;
 }
 
 export function formatCurrency(value) {

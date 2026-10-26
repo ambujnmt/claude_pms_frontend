@@ -138,7 +138,7 @@ export default function MaintenancePage() {
       <PageHeader
         title="Digital Projects"
         sub="Ongoing retainers and recurring service contracts"
-        action={canEdit && <Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Digital Project</Btn>}
+        action={canEdit && <Btn icon={<Plus size={14}/>} onClick={openAdd}>Add Contract</Btn>}
       />
 
       {/* KPIs */}
@@ -231,8 +231,8 @@ export default function MaintenancePage() {
 
       {/* Modal */}
       {showModal && (
-        <Modal title={editing?'Edit Contract':'Add Digital Project'} subtitle="Recurring service agreement or retainer" onClose={() => setShowModal(false)} width={600}
-          footer={<><Btn variant="ghost" onClick={() => setShowModal(false)}>Cancel</Btn><Btn onClick={handleSave} disabled={saving}>{saving?'Saving…':editing?'Save Changes':'Add Digital Project'}</Btn></>}
+        <Modal title={editing?'Edit Contract':'Add Contract'} subtitle="Recurring service agreement or retainer" onClose={() => setShowModal(false)} width={600}
+          footer={<><Btn variant="ghost" onClick={() => setShowModal(false)}>Cancel</Btn><Btn onClick={handleSave} disabled={saving}>{saving?'Saving…':editing?'Save Changes':'Add Contract'}</Btn></>}
         >
           <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             {errors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:14 }}>{errors.api}</div>}

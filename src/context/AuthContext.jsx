@@ -15,6 +15,9 @@ export const FULL_ACCESS_ROLES = ['super_admin', 'management', 'pm', 'team_lead'
    - view only            -> managers (PM, Team Lead, Account Manager)
    - everyone else (developer, designer, marketing, ...) has no client access at all.
    Keep in sync with EnforceRoleAccess::CLIENT_WRITE_ROLES / CLIENT_VIEW_ROLES. */
+/* Who may see ALL tickets and assign / change status / close them. Everyone else: raise + see own.
+   Keep in sync with EnforceRoleAccess::TICKET_MANAGER_ROLES. */
+export const TICKET_MANAGER_ROLES = ['super_admin', 'management', 'pm', 'team_lead', 'account_manager'];
 export const CLIENT_WRITE_ROLES = ['super_admin', 'management', 'bd'];
 export const CLIENT_VIEW_ROLES  = ['super_admin', 'management', 'bd', 'pm', 'team_lead', 'account_manager'];
 

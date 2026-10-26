@@ -7,7 +7,7 @@ import { Avatar } from './UI';
 const TITLES = {
   '/':             'Dashboard',
   '/clients':      'Clients',
-  '/projects':     'Development Projects',
+  '/projects':     'Projects',
   '/milestones':   'Milestones',
   '/resources':    'Workload',
   '/team':         'Team',
@@ -25,7 +25,10 @@ export default function Topbar() {
   const { user, logout, projects } = useApp();
   const loc    = useLocation();
   const navigate = useNavigate();
-  const title  = TITLES[loc.pathname]
+  const type   = new URLSearchParams(loc.search).get('type');
+  const title  = (loc.pathname === '/projects' && type === 'web') ? 'Web Projects'
+    : (loc.pathname === '/projects' && type === 'mobile') ? 'Mobile Projects'
+    : TITLES[loc.pathname]
     || (loc.pathname.startsWith('/clients/') ? 'Client Detail'
     : loc.pathname.startsWith('/maintenance/') ? 'Digital Project Detail' : 'Project Detail');
   const today  = new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });

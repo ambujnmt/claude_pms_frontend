@@ -5,6 +5,7 @@ import {
   PageHeader, EmptyState, Table, TR, TD,
 } from '../components/UI';
 import { Plus, Search, MessageSquare, CheckCircle2, RotateCcw, Trash2, Send } from 'lucide-react';
+import { TICKET_MANAGER_ROLES } from '../context/AuthContext';
 import ticketService, { TICKET_CATEGORIES, TICKET_PRIORITIES, TICKET_STATUSES } from '../services/ticketService';
 
 const PRIORITY_COLOR = { low:'#2E6DB4', medium:'#8B5E0A', high:'#A85010', urgent:'#9B1C1C' };
@@ -18,7 +19,8 @@ function fmtDateTime(iso) {
 }
 
 export default function TicketsPage() {
-  const { user, users, projects, canManage } = useApp();
+  const { user, users, projects } = useApp();
+  const canManage = !!user && TICKET_MANAGER_ROLES.includes(user.role);   // ticket managers only (not every full-access role)
 
   const [tickets, setTickets]   = useState([]);
   const [loading, setLoading]   = useState(true);
