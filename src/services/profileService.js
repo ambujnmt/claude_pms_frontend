@@ -2,6 +2,11 @@ import api from './api';
 
 /* Self-service profile (own record only) */
 const profileService = {
+  /* GET /api/profile -> own user incl. avatar_url (used to make sure the photo survives a page refresh) */
+  get: async () => {
+    const { data } = await api.get('/profile');
+    return data.user;
+  },
   updateName: async (name) => {
     const { data } = await api.put('/profile', { name });
     return data.user;

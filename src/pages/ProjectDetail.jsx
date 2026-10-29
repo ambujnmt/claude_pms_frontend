@@ -223,8 +223,8 @@ export default function ProjectDetail() {
     setPaymentSaving(true);
     try {
       if (paymentEditing) {
-        await projectService.updatePayment(project.id, paymentEditing, paymentForm);
-        updateLocal({ payments: project.payments.map(p => p.id === paymentEditing ? { ...p, ...paymentForm, amount: parseFloat(paymentForm.amount) } : p) });
+        const saved = await projectService.updatePayment(project.id, paymentEditing, paymentForm);
+        updateLocal({ payments: project.payments.map(p => p.id === paymentEditing ? { ...p, ...paymentForm, amount: parseFloat(paymentForm.amount), ...(saved || {}) } : p) });
       } else {
         const created = await projectService.addPayment(project.id, paymentForm);
         updateLocal({ payments: [...(project.payments||[]), created] });
@@ -540,7 +540,14 @@ export default function ProjectDetail() {
                         {pay.notes && ` · ${pay.notes}`}
                       </div>
                     </div>
-                    <span style={{ fontSize:20, fontWeight:800, color:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)' }}>{fmt(pay.amount)}</span>
+                    <div style={{ textAlign:'right' }}>
+                      <div style={{ fontSize:20, fontWeight:800, color:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)' }}>{fmt(pay.amount)}</div>
+                      {pay.amountUsd != null && pay.currencyCode && pay.currencyCode !== 'USD' && (
+                        <div title={`Rate locked on ${pay.rateDate || 'creation'}: 1 ${pay.currencyCode} = ${pay.exchangeRate} USD`} style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
+                          ≈ ${Number(pay.amountUsd).toLocaleString('en-US', { maximumFractionDigits: 2 })} USD
+                        </div>
+                      )}
+                    </div>
                     <StatusBadge status={pay.status}/>
                     {canManage && <ActionMenu onEdit={() => openEditPayment(pay)} onDelete={() => setConfirmDelPayment(pay.id)}/>}
                   </Card>

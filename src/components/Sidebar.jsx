@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar } from './UI';
 import { useApp } from '../context/AppContext';
-import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, ChevronDown, Code2, LifeBuoy, Globe, Smartphone } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, Milestone, BarChart2, Tag, Server, Layers, Wrench, DollarSign, UserCog, ChevronLeft, ChevronRight, ChevronDown, Code2, LifeBuoy, Globe, Smartphone, Settings, CalendarRange } from 'lucide-react';
 
 // managerOnly: hidden from execution roles (developer, designer, ...)
 // clientsOnly: only roles that may view the client directory
 // children:    renders a collapsible submenu
+// superAdminOnly: only the Super Admin sees it
 const NAV = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard',   exact: true },
   { to: '/clients',     icon: Users,           label: 'Clients', clientsOnly: true },
@@ -24,14 +25,17 @@ const NAV = [
   { to: '/services',    icon: Layers,          label: 'Services', managerOnly: true },
   { to: '/currencies',  icon: DollarSign,      label: 'Currencies', managerOnly: true },
   { to: '/categories',  icon: Tag,             label: 'Categories', managerOnly: true },
+  { key: 'settings',    icon: Settings,        label: 'Settings', superAdminOnly: true, home: '/settings/billing-cycle', children: [
+      { to: '/settings/billing-cycle',  icon: CalendarRange, label: 'Billing Cycle',  match: (p) => p.startsWith('/settings/billing-cycle') },
+  ]},
 ];
 
 export default function Sidebar() {
   const { sidebarOpen, setSidebarOpen, user, canManage, canViewClients, activeCurrency } = useApp();
   const loc = useLocation();
   const navigate = useNavigate();
-  const inProjects = loc.pathname.startsWith('/projects') || loc.pathname.startsWith('/maintenance');
-  const [projectsOpen, setProjectsOpen] = useState(true);
+  const [openGroups, setOpenGroups] = useState({ projects: true, settings: false });
+  const toggleGroup = (k) => setOpenGroups(o => ({ ...o, [k]: !o[k] }));
 
   const NAV_BG     = '#1B2E6B';
   const NAV_HOVER  = '#253d8a';
@@ -65,23 +69,26 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ flex:1, padding:'12px 10px', display:'flex', flexDirection:'column', gap:3, overflowY:'auto' }}>
-        {NAV.filter(n => (canManage || !n.managerOnly) && (canViewClients || !n.clientsOnly)).map((item) => {
+        {NAV.filter(n => (canManage || !n.managerOnly) && (canViewClients || !n.clientsOnly) && (user?.role === 'super_admin' || !n.superAdminOnly)).map((item) => {
           const { icon:Icon, label } = item;
 
           /* ── Submenu parent (Projects) ── */
           if (item.children) {
-            const open = sidebarOpen && (projectsOpen || inProjects);
+            const inProjects = item.key === 'projects'
+              ? (loc.pathname.startsWith('/projects') || loc.pathname.startsWith('/maintenance'))
+              : item.children.some(c => c.match(loc.pathname, new URLSearchParams(loc.search)));
+            const open = sidebarOpen && (openGroups[item.key] || inProjects);
             return (
               <div key={item.key}>
                 <div
-                  onClick={() => sidebarOpen ? setProjectsOpen(o => !o) : null}
+                  onClick={() => sidebarOpen ? toggleGroup(item.key) : null}
                   style={{ display:'flex', alignItems:'center', gap:12, padding:sidebarOpen?'10px 14px':'10px 0', justifyContent:sidebarOpen?'flex-start':'center', borderRadius:8, background:(!open && inProjects)?NAV_ACTIVE:'transparent', color:inProjects?TEXT_ACTIVE:TEXT_INACTIVE, fontWeight:inProjects?600:500, fontSize:14, cursor:'pointer', transition:'all 0.14s' }}
                   onMouseEnter={e => { if (!(!open && inProjects)) { e.currentTarget.style.background=NAV_HOVER; e.currentTarget.style.color='#fff'; }}}
                   onMouseLeave={e => { e.currentTarget.style.background=(!open && inProjects)?NAV_ACTIVE:'transparent'; e.currentTarget.style.color=inProjects?TEXT_ACTIVE:TEXT_INACTIVE; }}
                 >
                   {sidebarOpen
                     ? <Icon size={18} strokeWidth={inProjects?2.2:1.8} style={{ flexShrink:0 }}/>
-                    : <NavLink to="/projects" style={{ display:'flex', color:'inherit' }}><Icon size={18} strokeWidth={inProjects?2.2:1.8}/></NavLink>}
+                    : <NavLink to={item.home || '/projects'} style={{ display:'flex', color:'inherit' }}><Icon size={18} strokeWidth={inProjects?2.2:1.8}/></NavLink>}
                   {sidebarOpen && <span style={{ flex:1 }}>{label}</span>}
                   {sidebarOpen && <ChevronDown size={15} style={{ transform:open?'rotate(0deg)':'rotate(-90deg)', transition:'transform 0.15s', opacity:0.8 }}/>}
                 </div>

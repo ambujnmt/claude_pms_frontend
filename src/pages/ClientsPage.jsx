@@ -7,6 +7,7 @@ import {
 } from '../components/UI';
 import { Search, MapPin, Mail, Phone, Building2, Globe, Plus } from 'lucide-react';
 import clientService, { mapClientErrors } from '../services/clientService';
+import { validateClientForm, normalizeWebsite } from '../utils/clientValidation';
 
 const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Real Estate','HR Tech','Manufacturing','Education','Other'];
 const EMPTY_FORM = { name:'', contactPerson:'', email:'', alternateEmail:'', website:'', phone:'', alternatePhone:'', address:'', city:'', industry:'', status:'active', notes:'' };
@@ -51,14 +52,7 @@ export default function ClientsPage() {
   };
 
   const validate = () => {
-    const e = {};
-    if (!form.name.trim()) e.name = 'Required';
-    const em = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (form.email && !em.test(form.email.trim())) e.email = 'Invalid email';
-    if (form.alternateEmail && !em.test(form.alternateEmail.trim())) e.alternateEmail = 'Invalid email';
-    if (form.email && form.alternateEmail && form.email.trim().toLowerCase() === form.alternateEmail.trim().toLowerCase()) e.alternateEmail = 'Must differ from primary email';
-    const digits = v => (v || '').replace(/\D/g, '');
-    if (form.phone && form.alternatePhone && digits(form.phone) === digits(form.alternatePhone)) e.alternatePhone = 'Must differ from primary phone';
+    const e = validateClientForm(form);
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -145,7 +139,7 @@ export default function ClientsPage() {
                   {client.phone        && <Row icon={Phone}>{client.phone}</Row>}
                   {client.website      && (
                     <Row icon={Globe}>
-                      <a href={client.website} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color:'#2E6DB4', textDecoration:'none' }}>
+                      <a href={normalizeWebsite(client.website)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ color:'#2E6DB4', textDecoration:'none' }}>
                         {client.website.replace(/^https?:\/\//,'')}
                       </a>
                     </Row>
@@ -181,21 +175,21 @@ export default function ClientsPage() {
             {errors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:13 }}>{errors.api}</div>}
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <Field label="Company Name" required error={errors.name}><input value={form.name} onChange={e => set('name',e.target.value)} style={inputStyle(errors.name)} autoFocus/></Field>
-              <Field label="Contact Person"><input value={form.contactPerson} onChange={e => set('contactPerson',e.target.value)} style={inputStyle()}/></Field>
+              <Field label="Contact Person" error={errors.contactPerson}><input value={form.contactPerson} onChange={e => set('contactPerson',e.target.value)} style={inputStyle()}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Email" error={errors.email}><input type="email" value={form.email} onChange={e => set('email',e.target.value)} style={inputStyle(errors.email)}/></Field>
-              <Field label="Phone" error={errors.phone}><input value={form.phone} onChange={e => set('phone',e.target.value)} style={inputStyle(errors.phone)}/></Field>
+              <Field label="Email" error={errors.email}><input type="text" inputMode="email" placeholder="name@company.com" value={form.email} onChange={e => set('email',e.target.value)} style={inputStyle(errors.email)}/></Field>
+              <Field label="Phone" error={errors.phone}><input type="tel" placeholder="+91 98765 43210" value={form.phone} onChange={e => set('phone',e.target.value)} style={inputStyle(errors.phone)}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Alternate Email (optional)" error={errors.alternateEmail}><input type="email" value={form.alternateEmail} onChange={e => set('alternateEmail',e.target.value)} style={inputStyle(errors.alternateEmail)}/></Field>
-              <Field label="Alternate Phone (optional)" error={errors.alternatePhone}><input value={form.alternatePhone} onChange={e => set('alternatePhone',e.target.value)} style={inputStyle(errors.alternatePhone)}/></Field>
+              <Field label="Alternate Email (optional)" error={errors.alternateEmail}><input type="text" inputMode="email" value={form.alternateEmail} onChange={e => set('alternateEmail',e.target.value)} style={inputStyle(errors.alternateEmail)}/></Field>
+              <Field label="Alternate Phone (optional)" error={errors.alternatePhone}><input type="tel" value={form.alternatePhone} onChange={e => set('alternatePhone',e.target.value)} style={inputStyle(errors.alternatePhone)}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12 }}>
-              <Field label="Website"><input type="url" placeholder="https://example.com" value={form.website} onChange={e => set('website',e.target.value)} style={inputStyle()}/></Field>
+              <Field label="Website (optional)" error={errors.website}><input type="text" inputMode="url" autoCapitalize="off" placeholder="example.com or https://www.example.com" value={form.website} onChange={e => set('website',e.target.value)} style={inputStyle(errors.website)}/></Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="City/Country"><input value={form.city} onChange={e => set('city',e.target.value)} style={inputStyle()}/></Field>
+              <Field label="City/Country" error={errors.city}><input value={form.city} onChange={e => set('city',e.target.value)} style={inputStyle()}/></Field>
               <Field label="Industry">
                 <select value={form.industry} onChange={e => set('industry',e.target.value)} style={inputStyle()}>
                   <option value="">Select…</option>
@@ -210,7 +204,7 @@ export default function ClientsPage() {
                 </select>
               </Field>
             </div>
-            <Field label="Address (optional)"><textarea value={form.address} onChange={e => set('address',e.target.value)} rows={2} placeholder="Street, area, postal code…" style={{...inputStyle(),resize:'vertical'}}/></Field>
+            <Field label="Address (optional)" error={errors.address}><textarea value={form.address} onChange={e => set('address',e.target.value)} rows={2} placeholder="Street, area, postal code…" style={{...inputStyle(),resize:'vertical'}}/></Field>
             <Field label="Notes"><textarea value={form.notes} onChange={e => set('notes',e.target.value)} rows={3} style={{...inputStyle(),resize:'vertical'}}/></Field>
           </div>
         </Modal>

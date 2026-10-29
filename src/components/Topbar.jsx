@@ -19,6 +19,7 @@ const TITLES = {
   '/profile':      'Profile Settings',
   '/domains':      'Domains',
   '/currencies':   'Currencies',
+  '/settings/billing-cycle':  'Billing Cycle',
 };
 
 export default function Topbar() {

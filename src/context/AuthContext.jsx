@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import authService from '../services/authService';
+import profileService from '../services/profileService';
 import { getToken, clearToken } from '../services/api';
 
 const AuthContext = createContext(null);
@@ -30,12 +31,21 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
 
+  /* /auth/me may not include the photo link on every backend build -> ask /profile for it too */
+  const withPhoto = async (u) => {
+    if (!u || u.avatarUrl || u.avatar_url) return u;
+    try {
+      const p = await profileService.get();
+      return { ...u, avatar_url: p?.avatar_url ?? u.avatar_url, profile_photo_path: p?.profile_photo_path ?? u.profile_photo_path };
+    } catch { return u; }
+  };
+
   useEffect(() => {
     const restore = async () => {
       if (!getToken()) { setLoading(false); return; }
       try {
         const me = await authService.me();
-        setUser(me);
+        setUser(await withPhoto(me));
       } catch {
         clearToken();
       } finally {
@@ -49,7 +59,7 @@ export function AuthProvider({ children }) {
     setError(null);
     try {
       const me = await authService.login(email, password);
-      setUser(me);
+      setUser(await withPhoto(me));
       return true;
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please try again.';

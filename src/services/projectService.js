@@ -67,13 +67,14 @@ const projectService = {
   },
 
   updatePayment: async (projectId, paymentId, data) => {
-    await api.put(`/projects/${projectId}/payments/${paymentId}`, {
+    const res = await api.put(`/projects/${projectId}/payments/${paymentId}`, {
       amount: parseFloat(data.amount),
       type:   data.type,
       date:   data.date   || null,
       status: data.status,
       notes:  data.notes  || null,
     });
+    return res.data?.data || null;          // carries the refreshed amountUsd
   },
 
   deletePayment: async (projectId, paymentId) => {

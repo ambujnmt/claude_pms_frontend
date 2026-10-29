@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import clientService, { mapClientErrors }     from '../services/clientService';
 import clientServiceApi  from '../services/clientServiceApi';
+import { validateClientForm, normalizeWebsite } from '../utils/clientValidation';
+import { projectTypeOf } from '../utils/projectTypes';
 
 const TABS = [
   { key: 'overview',  label: 'Overview',     icon: Building2 },
@@ -94,6 +96,16 @@ export default function ClientDetail() {
     parseInt(h.clientId) === numId || h.clientId === id || h.clientId === numId
   );
   const activeProjectsCount = clientProjects.filter(p => p.status === 'active').length;
+
+  /* Web Project · Mobile Project · Digital Project (Digital = digital-category projects + this client's contracts) */
+  const typedProjects = { web: [], mobile: [], digital: [] };
+  clientProjects.forEach(p => typedProjects[projectTypeOf(p.category)].push(p));
+  const CATEGORY_BLOCKS = [
+    { key:'web',     title:'Web Project',     color:'#1B2E6B', list: typedProjects.web,     contracts: [] },
+    { key:'mobile',  title:'Mobile Project',  color:'#2E6DB4', list: typedProjects.mobile,  contracts: [] },
+    { key:'digital', title:'Digital Project', color:'#1A6B3C', list: typedProjects.digital, contracts: clientSvcs },
+  ].map(b => ({ ...b, count: b.list.length + b.contracts.length,
+                active: b.list.filter(p => p.status === 'active').length + b.contracts.filter(c => c.status === 'active').length }));
   const monthlyRevenue = fmtSum(clientSvcs.filter(cs => cs.status === 'active'), cs => cs.monthlyAmount);
   const totalBudget = fmtSum(clientProjects, p => p.budget);
 
@@ -118,7 +130,8 @@ export default function ClientDetail() {
   };
 
   const handleSaveClient = async () => {
-    if (!editForm.name?.trim()) { setEditErrors({ name: 'Required' }); return; }
+    const ve = validateClientForm(editForm);
+    if (Object.keys(ve).length) { setEditErrors(ve); return; }
     setEditSaving(true);
     try {
       const updated = await clientService.update(client.id, editForm);
@@ -300,7 +313,7 @@ export default function ClientDetail() {
                   </div>
                   <div>
                     <div style={{ fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', fontWeight:600 }}>Website</div>
-                    <a href={client.website} target="_blank" rel="noreferrer" style={{ fontSize:14, color:'#2E6DB4', marginTop:2, display:'block' }}>{client.website}</a>
+                    <a href={normalizeWebsite(client.website)} target="_blank" rel="noreferrer" style={{ fontSize:14, color:'#2E6DB4', marginTop:2, display:'block' }}>{client.website}</a>
                   </div>
                 </div>
               )}
@@ -316,58 +329,95 @@ export default function ClientDetail() {
             }
           </Card>
 
-          {/* Recent projects */}
-          {clientProjects.length > 0 && (
-            <Card style={{ gridColumn:'1 / -1' }}>
-              <SectionTitle>Projects</SectionTitle>
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {clientProjects.slice(0,5).map(p => (
-                  <div key={p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px', borderRadius:8, background:'var(--bg-elevated)', cursor:'pointer', border:'1px solid var(--border)', transition:'all 0.13s' }}
-                    onMouseEnter={e => e.currentTarget.style.background='#EDF4FB'}
-                    onMouseLeave={e => e.currentTarget.style.background='var(--bg-elevated)'}
-                  >
-                    <div style={{ width:3, height:36, borderRadius:3, background:p.color||'#2E6DB4', flexShrink:0 }}/>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:600, fontSize:14 }}>{p.name}</div>
-                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{p.category}{canViewFinance ? ` · ${fmtFor(p, p.budget)}` : ''}</div>
-                    </div>
-                    <ProgressBar value={p.completion||0} color={p.color||'#2E6DB4'} height={4} bg="var(--border)"/>
-                    <span style={{ fontSize:13, fontWeight:700, color:p.color||'#2E6DB4', minWidth:36, textAlign:'right' }}>{p.completion||0}%</span>
-                    <StatusBadge status={p.status}/>
+          {/* Projects by category: Web · Mobile · Digital */}
+          <Card style={{ gridColumn:'1 / -1' }}>
+            <SectionTitle>Projects by Category</SectionTitle>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:14 }}>
+              {CATEGORY_BLOCKS.map(b => (
+                <div key={b.key} style={{ border:'1px solid var(--border)', borderTop:`3px solid ${b.color}`, borderRadius:10, padding:'12px 14px', background:'var(--bg-card)' }}>
+                  <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:8, cursor:'pointer' }} onClick={() => setTab('projects')}>
+                    <span style={{ fontSize:14, fontWeight:700, color:b.color }}>{b.title}</span>
+                    <span style={{ fontSize:12, color:'var(--text-muted)' }}><strong style={{ fontSize:20, color:b.color }}>{b.count}</strong> · {b.active} active</span>
                   </div>
-                ))}
-              </div>
-            </Card>
-          )}
+                  {b.count === 0
+                    ? <div style={{ fontSize:13, color:'var(--text-muted)', padding:'8px 0' }}>No {b.title.toLowerCase()}s yet.</div>
+                    : <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                        {b.list.slice(0,5).map(p => (
+                          <div key={'p'+p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:7, background:'var(--bg-elevated)', cursor:'pointer' }}>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:13, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
+                              <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.category} · {p.completion||0}%</div>
+                            </div>
+                            <StatusBadge status={p.status}/>
+                          </div>
+                        ))}
+                        {b.contracts.slice(0,5).map(c => (
+                          <div key={'c'+c.id} onClick={() => navigate(`/maintenance/${c.id}`)} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:7, background:'var(--bg-elevated)', cursor:'pointer' }}>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:13, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.name}</div>
+                              <div style={{ fontSize:11, color:'var(--text-muted)' }}>Contract{c.contractType ? ` · ${c.contractType}` : ''}</div>
+                            </div>
+                            <StatusBadge status={c.status}/>
+                          </div>
+                        ))}
+                        {b.count > 5 && <div style={{ fontSize:12, color:'#2E6DB4', cursor:'pointer', paddingTop:2 }} onClick={() => setTab('projects')}>View all {b.count} →</div>}
+                      </div>}
+                </div>
+              ))}
+            </div>
+          </Card>
         </div>
       )}
 
       {/* ══ PROJECTS TAB ════════════════════════════════ */}
       {tab === 'projects' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          {clientProjects.length === 0
-            ? <EmptyState icon="📁" message="No projects for this client yet."/>
-            : clientProjects.map(p => (
-              <Card key={p.id} hover onClick={() => navigate(`/projects/${p.id}`)} style={{ display:'flex', alignItems:'center', gap:14 }}>
-                <div style={{ width:4, height:48, borderRadius:4, background:p.color||'#2E6DB4', flexShrink:0 }}/>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:700, fontSize:15 }}>{p.name}</div>
-                  <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>{p.category} · Due {formatDate(p.endDate)}</div>
-                </div>
-                <div style={{ minWidth:140 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                    <span style={{ fontSize:12, color:'var(--text-muted)' }}>Completion</span>
-                    <span style={{ fontSize:12, fontWeight:700, color:p.color||'#2E6DB4' }}>{p.completion||0}%</span>
-                  </div>
-                  <ProgressBar value={p.completion||0} color={p.color||'#2E6DB4'} height={4}/>
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, minWidth:100 }}>
-                  <StatusBadge status={p.status}/>
-                  {canViewFinance && <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmtFor(p, p.budget)}</span>}
-                </div>
-              </Card>
-            ))
-          }
+        <div style={{ display:'flex', flexDirection:'column', gap:22 }}>
+          {CATEGORY_BLOCKS.map(b => (
+            <div key={b.key}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                <div style={{ width:4, height:20, borderRadius:3, background:b.color }}/>
+                <span style={{ fontSize:16, fontWeight:700, color:b.color }}>{b.title}</span>
+                <span style={{ fontSize:13, color:'var(--text-muted)' }}>{b.count} total · {b.active} active</span>
+              </div>
+              {b.count === 0
+                ? <Card style={{ padding:'14px 18px', fontSize:14, color:'var(--text-muted)' }}>No {b.title.toLowerCase()}s for this client yet.</Card>
+                : <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                    {b.list.map(p => (
+                      <Card key={p.id} hover onClick={() => navigate(`/projects/${p.id}`)} style={{ display:'flex', alignItems:'center', gap:14 }}>
+                        <div style={{ width:4, height:48, borderRadius:4, background:p.color||'#2E6DB4', flexShrink:0 }}/>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{p.name}</div>
+                          <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>{p.category} · Due {formatDate(p.endDate)}</div>
+                        </div>
+                        <div style={{ minWidth:140 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                            <span style={{ fontSize:12, color:'var(--text-muted)' }}>Completion</span>
+                            <span style={{ fontSize:12, fontWeight:700, color:p.color||'#2E6DB4' }}>{p.completion||0}%</span>
+                          </div>
+                          <ProgressBar value={p.completion||0} color={p.color||'#2E6DB4'} height={4}/>
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, minWidth:100 }}>
+                          <StatusBadge status={p.status}/>
+                          {canViewFinance && <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmtFor(p, p.budget)}</span>}
+                        </div>
+                      </Card>
+                    ))}
+                    {b.contracts.map(c => (
+                      <Card key={'c'+c.id} hover onClick={() => navigate(`/maintenance/${c.id}`)} style={{ display:'flex', alignItems:'center', gap:14 }}>
+                        <div style={{ width:4, height:48, borderRadius:4, background:b.color, flexShrink:0 }}/>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:700, fontSize:15 }}>{c.name}</div>
+                          <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>Contract{c.contractType ? ` · ${c.contractType}` : ''}{c.renewalDate ? ` · Renews ${formatDate(c.renewalDate)}` : ''}</div>
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6, minWidth:100 }}>
+                          <StatusBadge status={c.status}/>
+                          {canViewFinance && <span style={{ fontSize:13, fontWeight:700, color:'var(--success)' }}>{fmtFor(c, c.monthlyAmount)}</span>}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>}
+            </div>
+          ))}
         </div>
       )}
 
@@ -466,29 +516,32 @@ export default function ClientDetail() {
               <Field label="Company Name" required error={editErrors.name}>
                 <input value={editForm.name||''} onChange={e => setEditForm(f=>({...f,name:e.target.value}))} style={inputStyle(editErrors.name)} autoFocus/>
               </Field>
-              <Field label="Contact Person">
-                <input value={editForm.contactPerson||''} onChange={e => setEditForm(f=>({...f,contactPerson:e.target.value}))} style={inputStyle()}/>
+              <Field label="Contact Person" error={editErrors.contactPerson}>
+                <input value={editForm.contactPerson||''} onChange={e => setEditForm(f=>({...f,contactPerson:e.target.value}))} style={inputStyle(editErrors.contactPerson)}/>
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <Field label="Email" error={editErrors.email}>
-                <input type="email" value={editForm.email||''} onChange={e => setEditForm(f=>({...f,email:e.target.value}))} style={inputStyle(editErrors.email)}/>
+                <input type="text" inputMode="email" placeholder="name@company.com" value={editForm.email||''} onChange={e => setEditForm(f=>({...f,email:e.target.value}))} style={inputStyle(editErrors.email)}/>
               </Field>
               <Field label="Phone" error={editErrors.phone}>
-                <input value={editForm.phone||''} onChange={e => setEditForm(f=>({...f,phone:e.target.value}))} style={inputStyle(editErrors.phone)}/>
+                <input type="tel" placeholder="+91 98765 43210" value={editForm.phone||''} onChange={e => setEditForm(f=>({...f,phone:e.target.value}))} style={inputStyle(editErrors.phone)}/>
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <Field label="Alternate Email (optional)" error={editErrors.alternateEmail}>
-                <input type="email" value={editForm.alternateEmail||''} onChange={e => setEditForm(f=>({...f,alternateEmail:e.target.value}))} style={inputStyle(editErrors.alternateEmail)}/>
+                <input type="text" inputMode="email" value={editForm.alternateEmail||''} onChange={e => setEditForm(f=>({...f,alternateEmail:e.target.value}))} style={inputStyle(editErrors.alternateEmail)}/>
               </Field>
               <Field label="Alternate Phone (optional)" error={editErrors.alternatePhone}>
-                <input value={editForm.alternatePhone||''} onChange={e => setEditForm(f=>({...f,alternatePhone:e.target.value}))} style={inputStyle(editErrors.alternatePhone)}/>
+                <input type="tel" value={editForm.alternatePhone||''} onChange={e => setEditForm(f=>({...f,alternatePhone:e.target.value}))} style={inputStyle(editErrors.alternatePhone)}/>
               </Field>
             </div>
+            <Field label="Website (optional)" error={editErrors.website}>
+              <input type="text" inputMode="url" autoCapitalize="off" placeholder="example.com or https://www.example.com" value={editForm.website||''} onChange={e => setEditForm(f=>({...f,website:e.target.value}))} style={inputStyle(editErrors.website)}/>
+            </Field>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="City/Country">
-                <input value={editForm.city||''} onChange={e => setEditForm(f=>({...f,city:e.target.value}))} style={inputStyle()}/>
+              <Field label="City/Country" error={editErrors.city}>
+                <input value={editForm.city||''} onChange={e => setEditForm(f=>({...f,city:e.target.value}))} style={inputStyle(editErrors.city)}/>
               </Field>
               <Field label="Industry">
                 <select value={editForm.industry||''} onChange={e => setEditForm(f=>({...f,industry:e.target.value}))} style={inputStyle()}>
@@ -504,7 +557,7 @@ export default function ClientDetail() {
                 </select>
               </Field>
             </div>
-            <Field label="Address (optional)">
+            <Field label="Address (optional)" error={editErrors.address}>
               <textarea value={editForm.address||''} onChange={e => setEditForm(f=>({...f,address:e.target.value}))} rows={2} placeholder="Street, area, postal code…" style={{...inputStyle(), resize:'vertical'}}/>
             </Field>
             <Field label="Notes">

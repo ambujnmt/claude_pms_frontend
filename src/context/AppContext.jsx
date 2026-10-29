@@ -11,6 +11,7 @@ import currencyService    from '../services/currencyService';
 import categoryService    from '../services/categoryService';
 import userService        from '../services/userService';
 import teamService        from '../services/teamService';
+import settingsService    from '../services/settingsService';
 
 const AppContext = createContext(null);
 
@@ -35,6 +36,9 @@ export function AppProvider({ children }) {
   const [currencies,     setCurrencies]     = useState([DEFAULT_CURRENCY]);
   const [activeCurrency, setActiveCurrency] = useState(DEFAULT_CURRENCY);
 
+  /* Settings (set by the Super Admin): billing cycle */
+  const [billingCycle, setBillingCycle] = useState(null);   // { start, end } | null  -> null = automatic 15th-15th
+
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError,   setDataError]   = useState(null);
 
@@ -58,6 +62,21 @@ export function AppProvider({ children }) {
   /* Aggregate across entities WITHOUT mixing currencies: "$1.0K + ₹4.5L" */
   // one entry per currency, e.g. [{code:'AUD', text:'A$9,000'}, {code:'USD', text:'$16,850'}]
   const fmtParts = useCallback((items, getAmount) => totalsParts(items, getAmount, currencyOf), [currencyOf]);
+  /* ── USD view (dashboard) ─────────────────────────────────────────
+     Every payment carries `amountUsd`: the amount converted at the live exchange rate on the day
+     the payment was added (saved by the API, so history never changes). */
+  const fmtUsd = useCallback((n) => formatAmount(Math.round((Number(n) || 0) * 100) / 100, { symbol:'$', symbolPosition:'prefix' }), []);
+  const usdTotal = useCallback((items, getAmount) => {
+    let total = 0, missing = 0;
+    items.forEach(it => {
+      const n = Number(getAmount(it)) || 0;
+      if (!n) return;
+      if (it.amountUsd !== null && it.amountUsd !== undefined) total += Number(it.amountUsd);
+      else if ((currencyOf(it)?.code || '').toUpperCase() === 'USD') total += n;
+      else missing += 1;                                   // old payment without a saved USD value
+    });
+    return { total, missing };
+  }, [currencyOf]);
   const fmtSum = useCallback((items, getAmount) => formatTotals(items, getAmount, currencyOf, formatAmount(0, activeCurrency)), [currencyOf, activeCurrency]);
 
   const loadAllData = useCallback(async () => {
@@ -120,6 +139,12 @@ export function AppProvider({ children }) {
       setCurrencies([DEFAULT_CURRENCY]); setActiveCurrency(DEFAULT_CURRENCY);
     }
   }, [user]);
+
+  /* Settings load separately so a missing/forbidden settings API can never break the rest of the app */
+  useEffect(() => {
+    if (!user || !canViewFinance) { setBillingCycle(null); return; }
+    settingsService.getBillingCycle().then(setBillingCycle).catch(() => setBillingCycle(null));
+  }, [user, canViewFinance]);
 
   /* Currency CRUD */
   const addCurrency    = (c)        => setCurrencies(prev => [...prev, c]);
@@ -196,7 +221,8 @@ export function AppProvider({ children }) {
 
       currencies, setCurrencies,
       activeCurrency, setActiveCurrency,
-      fmt, currencyOf, fmtFor, fmtSum, fmtParts,
+      fmt, currencyOf, fmtFor, fmtSum, fmtParts, fmtUsd, usdTotal,
+      billingCycle, setBillingCycle,
       addCurrency, updateCurrency, deleteCurrency, setDefaultCurrency,
 
       categories, setCategories,

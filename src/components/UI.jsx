@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 // ─── Avatar ──────────────────────────────────────────────────────
@@ -8,11 +8,17 @@ export function userInitials(u) {
   return (raw || '?').slice(0, 2).toUpperCase();
 }
 export function avatarSrc(u) {
-  return u?.avatarUrl || u?.avatar_url || null;
+  const src = u?.avatarUrl || u?.avatar_url || null;
+  // an http:// photo link on an https:// site is blocked by the browser (mixed content) -> upgrade it
+  if (src && typeof window !== 'undefined' && window.location.protocol === 'https:' && src.startsWith('http://')) {
+    return 'https://' + src.slice(7);
+  }
+  return src;
 }
 export function Avatar({ user, size = 30, bg = '#2E6DB4', color = '#fff', fontSize, style = {} }) {
   const [broken, setBroken] = useState(false);
   const src = avatarSrc(user);
+  useEffect(() => { setBroken(false); }, [src]);        // a new photo must get a fresh chance to load
   const base = { width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden', ...style };
   if (src && !broken) {
     return <img src={src} alt={user?.name || ''} onError={() => setBroken(true)} style={{ ...base, objectFit: 'cover', display: 'block', background: 'var(--bg-elevated)' }} />;

@@ -8,13 +8,14 @@ import {
   FolderKanban, CheckCircle2, Wallet, Users, 
 } from 'lucide-react';
 import { projectTypeOf } from '../utils/projectTypes';
+import { resolveCycle, fmtCycleDate, toLocalDate } from '../utils/billingCycle';
 
 const NAVY = '#1B2E6B';
 const BLUE = '#2E6DB4';
 const SKY  = '#4A90D9';
 
 export default function Dashboard() {
-  const { projects, clients, clientServices, categories, fmtFor, fmtParts, canManage, canViewFinance, canViewClients, dataLoading } = useApp();
+  const { user, projects, clients, clientServices, categories, fmtUsd, usdTotal, billingCycle, canManage, canViewFinance, canViewClients, dataLoading } = useApp();
   const navigate = useNavigate();
 
   /* ── Core project stats ────────────────────────────────────── */
@@ -41,20 +42,16 @@ export default function Dashboard() {
      Office billing runs from the 15th of one month to the 15th of the next
      (before the 15th we are still in the cycle that began on the 15th of last month).
      A cycle covers  start <= date < next start,  so a payment dated on the 15th belongs to the new cycle.
-     Amounts of different currencies are never added together - each currency gets its own line. */
-  const localDate = (str) => { const [y, m, d] = String(str).slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+     Every amount on this card is in USD: each payment stores its USD value, converted at the live rate on the day the payment was added. */
+  const localDate = toLocalDate;
   const today = useMemo(() => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }, []);
-  const cycle = useMemo(() => {
-    const start = today.getDate() >= 15 ? new Date(today.getFullYear(), today.getMonth(), 15) : new Date(today.getFullYear(), today.getMonth() - 1, 15);
-    const end   = new Date(start.getFullYear(), start.getMonth() + 1, 15);
-    return { start, end };
-  }, [today]);
-  const cycleFmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  const cycleTitle = `Payment Status Current Cycle (${cycleFmt(cycle.start)} - ${cycleFmt(cycle.end)})`;
+  const cycle = useMemo(() => resolveCycle(billingCycle, today), [billingCycle, today]);   // saved in Settings (Super Admin), else automatic 15th-15th
+  // the office writes the range as "15 Oct - 15 Nov" (second date = the day the next cycle starts)
+  const cycleTitle = `Payment Status Current Cycle (${fmtCycleDate(cycle.start)} - ${fmtCycleDate(cycle.end)})`;
 
   const allPayments = useMemo(() => projects.flatMap(p => (p.payments || [])
     .filter(pay => pay.date)
-    .map(pay => ({ ...pay, due: localDate(pay.date), projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId }))), [projects]);
+    .map(pay => ({ ...pay, due: localDate(pay.date), projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId, amountUsd: pay.amountUsd }))), [projects]);
 
   const inCycle = (p) => p.due >= cycle.start && p.due < cycle.end;
   const unpaid  = allPayments.filter(p => p.status !== 'received');
@@ -64,6 +61,10 @@ export default function Dashboard() {
   const overduePayments = unpaid.filter(p => p.due < today);                    // unpaid and past due date (any cycle)
   const upcomingPayments = unpaid.filter(p => p.due >= today).sort((a, b) => a.due - b.due).slice(0, 5);
   const amt = (p) => p.amount;
+  const recvUsd = usdTotal(receivedInCycle, amt);
+  const pendUsd = usdTotal(pendingInCycle, amt);
+  const overUsd = usdTotal(overduePayments, amt);
+  const missingUsd = recvUsd.missing + pendUsd.missing + overUsd.missing + upcomingPayments.filter(p => usdTotal([p], amt).missing).length;
 
   /* ── Client stats ──────────────────────────────────────────── */
   const activeServicesCount = clientServices.filter(cs => cs.status === 'active').length;
@@ -124,10 +125,15 @@ export default function Dashboard() {
             <Wallet size={16} color="var(--text-muted)"/>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:16 }}>
-            <MiniStat label="Total Received In Current Cycle" parts={fmtParts(receivedInCycle, amt)} color="var(--success)"/>
-            <MiniStat label="Total Pending In Current Cycle"  parts={fmtParts(pendingInCycle, amt)}  color="var(--warning)"/>
-            <MiniStat label="Total Overdue Amount"            parts={fmtParts(overduePayments, amt)} color={overduePayments.length>0?'var(--danger)':'var(--text-muted)'}/>
+            <MiniStat label="Total Received In Current Cycle" value={fmtUsd(recvUsd.total)} color="var(--success)"/>
+            <MiniStat label="Total Pending In Current Cycle"  value={fmtUsd(pendUsd.total)} color="var(--warning)"/>
+            <MiniStat label="Total Overdue Amount"            value={fmtUsd(overUsd.total)} color={overUsd.total>0?'var(--danger)':'var(--text-muted)'}/>
           </div>
+          {missingUsd > 0 && (
+            <div style={{ fontSize:12, color:'var(--warning)', background:'#FFF8E6', border:'1px solid #F0D9A0', borderRadius:7, padding:'7px 10px', marginBottom:12 }}>
+              Some older payments have no USD value saved yet, so they are not included in these totals. Ask your developer to run <code>php artisan payments:backfill-usd</code> once.
+            </div>
+          )}
 
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
             <div style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px' }}>Next Payments Due</div>
@@ -142,7 +148,7 @@ export default function Dashboard() {
                     <span style={{ color:'var(--text)' }}>{p.projectName} <span style={{ color:'var(--text-muted)' }}>· {p.type}</span></span>
                     <span style={{ display:'flex', gap:8, alignItems:'center' }}>
                       <span style={{ color:'var(--text-muted)' }}>{formatDate(p.date)}</span>
-                      <strong style={{ color:BLUE }}>{fmtFor(p, p.amount)}</strong>
+                      <strong style={{ color:BLUE }}>{usdTotal([p], amt).missing.length ? <span title="USD value not saved for this older payment yet" style={{ color:'var(--text-muted)' }}>USD pending</span> : fmtUsd(usdTotal([p], amt).total)}</strong>
                     </span>
                   </div>
                 ))}
@@ -293,17 +299,10 @@ function KpiCard({ icon, label, value, sub, accent, light, to, navigate, breakdo
   );
 }
 
-function MiniStat({ label, parts, color }) {
-  // one line per currency - different currencies are listed, never added together
+function MiniStat({ label, value, color }) {
   return (
     <div style={{ textAlign:'center', padding:'10px 6px', borderRadius:9, background:'var(--bg-elevated)' }}>
-      {parts.length === 0
-        ? <div style={{ fontSize:16, fontWeight:800, color:'var(--text-muted)' }}>0</div>
-        : parts.map(p => (
-            <div key={p.code + p.text} style={{ fontSize:parts.length > 1 ? 14 : 16, fontWeight:800, color, lineHeight:1.35 }}>
-              {p.text}{parts.length > 1 && p.code && <span style={{ fontSize:10, fontWeight:600, color:'var(--text-muted)', marginLeft:4 }}>{p.code}</span>}
-            </div>
-          ))}
+      <div style={{ fontSize:18, fontWeight:800, color, lineHeight:1.35 }}>{value}</div>
       <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5, lineHeight:1.3 }}>{label}</div>
     </div>
   );

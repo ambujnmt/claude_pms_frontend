@@ -18,6 +18,7 @@ import MaintenanceDetail   from './pages/MaintenanceDetail';
 import CurrenciesPage      from './pages/CurrenciesPage';
 import TeamPage            from './pages/TeamPage';
 import TicketsPage         from './pages/TicketsPage';
+import { BillingCycleSettings } from './pages/SettingsPage';
 import DomainsPage         from './pages/DomainsPage';
 import ProfilePage         from './pages/ProfilePage';
 
@@ -25,6 +26,12 @@ import ProfilePage         from './pages/ProfilePage';
 function ManagersOnly({ children }) {
   const { canManage } = useAuth();
   return canManage ? children : <Navigate to="/" replace />;
+}
+
+/* Settings pages: Super Admin only, even via URL */
+function SuperAdminOnly({ children }) {
+  const { user } = useAuth();
+  return user?.role === 'super_admin' ? children : <Navigate to="/" replace />;
 }
 
 /* Client directory is hidden from developers / designers / marketing, even via URL */
@@ -68,6 +75,8 @@ export default function App() {
               <Route path="services" element={<ManagersOnly><ServicesPage /></ManagersOnly>} />
               <Route path="maintenance"      element={<MaintenancePage />} />
               <Route path="maintenance/:id"  element={<MaintenanceDetail />} />
+ <Route path="settings" element={<Navigate to="/settings/billing-cycle" replace />} />
+              <Route path="settings/billing-cycle"  element={<SuperAdminOnly><BillingCycleSettings /></SuperAdminOnly>} />
               <Route path="currencies" element={<ManagersOnly><CurrenciesPage /></ManagersOnly>} />
               <Route path="*" element={<Navigate to="/" />} />
             </Route>
