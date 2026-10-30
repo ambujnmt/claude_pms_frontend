@@ -8,6 +8,7 @@ import {
 import { Plus, Search, Users } from 'lucide-react';
 import teamService from '../services/teamService';
 import userService from '../services/userService';
+import api from '../services/api';
 
 export const ROLES = [
   { value: 'super_admin',     label: 'Super Admin',          color: '#9B1C1C' },
@@ -35,6 +36,10 @@ const EMPTY = { name:'', email:'', password:'', role:'developer', avatar:'', isA
 const TEAM_OWNER_ROLES = ['pm', 'team_lead', 'account_manager'];
 /* roles that never report to a manager */
 const NO_MANAGER_ROLES = ['super_admin', 'management', 'pm', 'team_lead', 'account_manager', 'bd'];
+
+/* The /users list does not always include each person's photo link. Fall back to the public photo URL
+   (GET /api/avatars/{id}); <Avatar> shows the initials automatically when that user has no photo. */
+const withPhoto = (u) => (u.avatar_url || u.avatarUrl) ? u : { ...u, avatar_url: `${api.defaults.baseURL}/avatars/${u.id}` };
 
 export default function TeamPage() {
   const { users, setUsers, isManagement, user: currentUser, dataLoading } = useApp();
@@ -151,7 +156,7 @@ export default function TeamPage() {
               <TR key={u.id}>
                 <TD>
                   <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-                    <Avatar user={u} size={30} bg={roleColor(u.role)}/>
+                    <Avatar user={withPhoto(u)} size={30} bg={roleColor(u.role)}/>
                     <span style={{ fontWeight:600 }}>{u.name}{u.id === currentUser?.id && <span style={{ fontSize:11, color:'var(--text-muted)', fontWeight:400 }}> (you)</span>}</span>
                   </div>
                 </TD>
