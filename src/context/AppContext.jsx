@@ -130,6 +130,29 @@ export function AppProvider({ children }) {
     }
   }, [user, isExecution, canViewClients, canAssignResources]);
 
+  /* Silent background refresh of the data the Dashboard shows (projects + payments,
+     contracts, clients). No loading screen, no error banner - if a request fails the
+     current data simply stays. Used so changes made by other users / other tabs
+     appear on the Dashboard without a page refresh. */
+  const refreshLiveData = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [projectsData, clientServicesData, clientsData] = await Promise.all([
+        projectService.getAll(),
+        clientServiceApi.getAll().catch(() => null),
+        canViewClients ? clientService.getAll().catch(() => null) : Promise.resolve(null),
+      ]);
+      const uid  = String(user.id);
+      const mine = (item) => {
+        const ids = (item.resourceIds || []).map(String);
+        return ids.includes(uid) || String(item.bdOwner ?? item.bdOwnerId ?? '') === uid || String(item.pmOwner ?? item.pmOwnerId ?? '') === uid;
+      };
+      if (Array.isArray(projectsData))       setProjects(isExecution ? projectsData.filter(mine) : projectsData);
+      if (Array.isArray(clientServicesData)) setClientServices(isExecution ? clientServicesData.filter(mine) : clientServicesData);
+      if (Array.isArray(clientsData))        setClients(clientsData);
+    } catch { /* keep what we have */ }
+  }, [user, isExecution, canViewClients]);
+
   useEffect(() => {
     if (user) {
       loadAllData();
@@ -200,8 +223,9 @@ export function AppProvider({ children }) {
   const deleteMilestone = (pid, mid) => setProjects(prev => prev.map(p => p.id === pid ? { ...p, milestones:p.milestones.filter(m => m.id!==mid) } : p));
 
   const addPayment    = (pid, data)        => setProjects(prev => prev.map(p => p.id===pid?{...p,payments:[...p.payments,{...data,id:`pay${Date.now()}`,amount:parseFloat(data.amount)}]}:p));
-  const updatePayment = (pid, payId, data) => setProjects(prev => prev.map(p => p.id===pid?{...p,payments:p.payments.map(pay=>pay.id===payId?{...pay,...data,amount:parseFloat(data.amount)||pay.amount}:pay)}:p));
-  const deletePayment = (pid, payId)       => setProjects(prev => prev.map(p => p.id===pid?{...p,payments:p.payments.filter(pay=>pay.id!==payId)}:p));
+  // received payments are locked - never changed or removed locally either
+  const updatePayment = (pid, payId, data) => setProjects(prev => prev.map(p => p.id===pid?{...p,payments:p.payments.map(pay=>pay.id===payId && pay.status!=='received'?{...pay,...data,amount:parseFloat(data.amount)||pay.amount}:pay)}:p));
+  const deletePayment = (pid, payId)       => setProjects(prev => prev.map(p => p.id===pid?{...p,payments:p.payments.filter(pay=>pay.id!==payId || pay.status==='received')}:p));
 
   const addBlocker      = (pid, b)   => setProjects(prev => prev.map(p => p.id===pid?{...p,blockers:[{...b,id:`b${Date.now()}`,addedAt:new Date().toISOString().split('T')[0],resolved:false},...p.blockers]}:p));
   const resolveBlocker  = (pid, bid) => setProjects(prev => prev.map(p => p.id===pid?{...p,blockers:p.blockers.map(b=>b.id===bid?{...b,resolved:true}:b)}:p));
@@ -217,7 +241,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       user, logout,
       isManagement, isPM, isBD, canManage, canViewFinance, isExecution, canEditClients, canViewClients, canAssignResources, resourceOptions,
-      dataLoading, dataError, loadAllData,
+      dataLoading, dataError, loadAllData, refreshLiveData,
 
       currencies, setCurrencies,
       activeCurrency, setActiveCurrency,

@@ -15,8 +15,27 @@ const BLUE = '#2E6DB4';
 const SKY  = '#4A90D9';
 
 export default function Dashboard() {
-  const { user, projects, clients, clientServices, categories, fmtUsd, usdTotal, billingCycle, canManage, canViewFinance, canViewClients, dataLoading } = useApp();
+  const { user, projects, clients, clientServices, categories, fmtUsd, usdTotal, billingCycle, canManage, canViewFinance, canViewClients, dataLoading, refreshLiveData } = useApp();
   const navigate = useNavigate();
+
+  /* ── Live data ─────────────────────────────────────────────────
+     Changes made inside this app already show here instantly (shared state).
+     To also pick up changes made by OTHER users / other tabs without a page refresh,
+     the dashboard quietly re-fetches when it opens, when the tab gets focus again,
+     and every 30 seconds while it is visible. */
+  useEffect(() => {
+    if (!refreshLiveData) return;
+    refreshLiveData();
+    const onFocus = () => { if (document.visibilityState === 'visible') refreshLiveData(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    const id = setInterval(() => { if (document.visibilityState === 'visible') refreshLiveData(); }, 30000);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+      clearInterval(id);
+    };
+  }, [refreshLiveData]);
 
   /* ── Core project stats ────────────────────────────────────── */
   const active    = projects.filter(p => p.status === 'active').length;
@@ -54,16 +73,26 @@ export default function Dashboard() {
   // the office writes the range as "15 Oct - 15 Nov" (second date = the day the next cycle starts)
   const cycleTitle = `Payment Status Current Cycle (${fmtCycleDate(cycle.start)} - ${fmtCycleDate(cycle.end)})`;
 
+  /* Each payment has two dates:
+       due      = the Due Date typed by the user
+       received = the day it was marked "received" (saved automatically; older rows fall back to the due date)
+     The cycle date ("cycleDate") is the RECEIVED date for received payments and the DUE date for the rest. */
   const allPayments = useMemo(() => projects.flatMap(p => (p.payments || [])
-    .filter(pay => pay.date)
-    .map(pay => ({ ...pay, due: localDate(pay.date), projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId, amountUsd: pay.amountUsd }))), [projects]);
+    .filter(pay => pay.date || pay.receivedDate)
+    .map(pay => {
+      const due      = pay.date ? localDate(pay.date) : null;
+      const received = pay.status === 'received' ? (pay.receivedDate ? localDate(pay.receivedDate) : due) : null;
+      return { ...pay, due, received, cycleDate: received || due, projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId, amountUsd: pay.amountUsd };
+    })
+    .filter(pay => pay.cycleDate)), [projects]);
 
-  /* Every number below uses ONLY payments dated inside the cycle shown in the title (start <= date < end):
-       Received = marked received      Pending = not received, due today or later      Overdue = not received, due before today
-     so Received + Pending + Overdue = everything scheduled in this cycle.
+  /* Every number below uses ONLY payments that fall inside the cycle shown in the title (start <= date < end):
+       Received = marked received, RECEIVED DATE in this cycle
+       Pending  = not received, due date in this cycle, due today or later
+       Overdue  = not received, due date in this cycle, due before today
      Unpaid money from EARLIER cycles is not mixed in - it is shown separately underneath. */
-  const inCycle = (p) => p.due >= cycle.start && p.due < cycle.end;
-  const unpaid  = allPayments.filter(p => p.status !== 'received');
+  const inCycle = (p) => p.cycleDate >= cycle.start && p.cycleDate < cycle.end;
+  const unpaid  = allPayments.filter(p => p.status !== 'received' && p.due);
   const cyclePayments = allPayments.filter(inCycle);
 
   const receivedInCycle  = cyclePayments.filter(p => p.status === 'received');
@@ -164,8 +193,8 @@ export default function Dashboard() {
                   <div key={p.id} onClick={() => navigate(`/projects/${p.projectId}`)} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'7px 10px', borderRadius:7, background:'var(--bg-elevated)', cursor:'pointer', fontSize:13 }}>
                     <span style={{ color:'var(--text)' }}>{p.projectName} <span style={{ color:'var(--text-muted)' }}>· {p.type}</span></span>
                     <span style={{ display:'flex', gap:8, alignItems:'center' }}>
-                      <span style={{ color:'var(--text-muted)' }}>{formatDate(p.date)}</span>
-                      <strong style={{ color:BLUE }}>{usdTotal([p], amt).missing.length ? <span title="USD value not saved for this older payment yet" style={{ color:'var(--text-muted)' }}>USD pending</span> : fmtUsd(usdTotal([p], amt).total)}</strong>
+                      <span style={{ color:'var(--text-muted)' }}>Due {formatDate(p.date)}</span>
+                      <strong style={{ color:BLUE }}>{usdTotal([p], amt).missing ? <span title="USD value not saved for this older payment yet" style={{ color:'var(--text-muted)' }}>USD pending</span> : fmtUsd(usdTotal([p], amt).total)}</strong>
                     </span>
                   </div>
                 ))}

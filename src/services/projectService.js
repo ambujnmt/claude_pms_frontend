@@ -55,13 +55,18 @@ const projectService = {
     return res.data.cycleTargeted;
   },
 
+  /* `date` = DUE date (typed by the user).
+     `received_date` is never typed: when the status is "received" we send the browser's local
+     "today" so the receipt day follows the office time-zone (the API falls back to its own date). */
   addPayment: async (projectId, data) => {
+    const status = data.status || 'upcoming';
     const res = await api.post(`/projects/${projectId}/payments`, {
       amount: parseFloat(data.amount),
       type:   data.type,
       date:   data.date   || null,
-      status: data.status || 'upcoming',
+      status,
       notes:  data.notes  || null,
+      ...(status === 'received' ? { received_date: localToday() } : {}),
     });
     return res.data.data;
   },
@@ -73,8 +78,9 @@ const projectService = {
       date:   data.date   || null,
       status: data.status,
       notes:  data.notes  || null,
+      ...(data.status === 'received' ? { received_date: localToday() } : {}),
     });
-    return res.data?.data || null;          // carries the refreshed amountUsd
+    return res.data?.data || null;          // carries the refreshed amountUsd + receivedDate
   },
 
   deletePayment: async (projectId, paymentId) => {
@@ -108,6 +114,12 @@ const projectService = {
     await api.delete(`/projects/${projectId}/achievements/${achievementId}`);
   },
 };
+
+/* "YYYY-MM-DD" in the browser's local time-zone */
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 /* camelCase → snake_case for project payload */
 function toSnake(p) {

@@ -229,11 +229,13 @@ export function EmptyState({ icon='📂', message }) {
 }
 
 // ─── Action Menu ─────────────────────────────────────────────────
-export function ActionMenu({ onEdit, onDelete }) {
+// `disabled` greys both buttons out (e.g. a received payment is locked); `disabledTitle` explains why on hover.
+export function ActionMenu({ onEdit, onDelete, disabled = false, disabledTitle = '' }) {
+  const off = disabled ? { opacity:0.45, cursor:'not-allowed' } : { cursor:'pointer' };
   return (
-    <div style={{ display:'flex', gap:4 }}>
-      <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ padding:'4px 10px', borderRadius:5, border:'1px solid var(--border)', background:'var(--bg-elevated)', fontSize:12, cursor:'pointer', color:'#2E6DB4', fontWeight:600 }}>Edit</button>
-      <button onClick={e => { e.stopPropagation(); onDelete(); }} style={{ padding:'4px 10px', borderRadius:5, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', fontSize:12, cursor:'pointer', color:'var(--danger)', fontWeight:600 }}>Delete</button>
+    <div style={{ display:'flex', gap:4 }} title={disabled ? disabledTitle : undefined}>
+      <button disabled={disabled} onClick={e => { e.stopPropagation(); if (!disabled) onEdit(); }} style={{ padding:'4px 10px', borderRadius:5, border:'1px solid var(--border)', background:'var(--bg-elevated)', fontSize:12, color:'#2E6DB4', fontWeight:600, ...off }}>Edit</button>
+      <button disabled={disabled} onClick={e => { e.stopPropagation(); if (!disabled) onDelete(); }} style={{ padding:'4px 10px', borderRadius:5, border:'1px solid #9B1C1C28', background:'var(--danger-dim)', fontSize:12, color:'var(--danger)', fontWeight:600, ...off }}>Delete</button>
     </div>
   );
 }

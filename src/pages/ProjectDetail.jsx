@@ -11,7 +11,7 @@ import ProjectDocuments from '../components/ProjectDocuments';
 import {
   ArrowLeft, Edit2, AlertCircle, Trophy,
   CreditCard, Milestone, Calendar, Target,
-  Plus, Trash2, CheckCheck, Paperclip,
+  Plus, Trash2, CheckCheck, Paperclip, Lock,
 } from 'lucide-react';
 import projectService from '../services/projectService';
 
@@ -76,6 +76,7 @@ export default function ProjectDetail() {
   const [paymentSaving, setPaymentSaving]   = useState(false);
   const [paymentErrors, setPaymentErrors]   = useState({});
   const [confirmDelPayment, setConfirmDelPayment] = useState(null);
+  const [confirmReceivePayment, setConfirmReceivePayment] = useState(null);
 
   const [showBlocker, setShowBlocker]     = useState(false);
   const [blockerForm, setBlockerForm]     = useState({ type:'technical', description:'' });
@@ -115,7 +116,12 @@ export default function ProjectDetail() {
 
   const client = project ? clients.find(c => c.id === project.clientId || c.id === parseInt(project.clientId)) : null;
 
-  const updateLocal = (changes) => setProject(prev => ({ ...prev, ...changes }));
+  /* Every change made on this page is written to BOTH this page's copy and the shared
+     project list, so the Dashboard (and every other page) shows it instantly - no refresh. */
+  const updateLocal = (changes) => {
+    setProject(prev => ({ ...prev, ...changes }));
+    setProjects(prev => prev.map(p => String(p.id) === String(project?.id) ? { ...p, ...changes } : p));
+  };
 
   const openEditProject = () => {
     setEditForm({
@@ -211,6 +217,7 @@ export default function ProjectDetail() {
 
   const openAddPayment = () => { setPaymentForm({ amount:'', type:'Milestone', date:'', status:'upcoming', notes:'' }); setPaymentEditing(null); setPaymentErrors({}); setShowPayment(true); };
   const openEditPayment = (pay) => {
+    if (pay.status === 'received') return;          // received payments are locked
     setPaymentForm({ amount: pay.amount, type: pay.type, date: pay.date||'', status: pay.status, notes: pay.notes||'' });
     setPaymentEditing(pay.id);
     setPaymentErrors({});
@@ -220,6 +227,12 @@ export default function ProjectDetail() {
   const handleSavePayment = async () => {
     if (!paymentForm.amount) { setPaymentErrors({ amount:'Required' }); return; }
     if (!paymentForm.date)   { setPaymentErrors({ date:'Required' }); return; }
+    // marking as received locks the payment for good - ask once
+    const wasReceived = paymentEditing && (project.payments || []).find(p => p.id === paymentEditing)?.status === 'received';
+    if (paymentForm.status === 'received' && !wasReceived &&
+        !window.confirm('Mark this payment as RECEIVED?\n\nToday\'s date will be saved as the received date, and the payment will be locked (it cannot be edited or deleted afterwards).')) {
+      return;
+    }
     setPaymentSaving(true);
     try {
       if (paymentEditing) {
@@ -241,8 +254,19 @@ export default function ProjectDetail() {
     try {
       await projectService.deletePayment(project.id, confirmDelPayment);
       updateLocal({ payments: project.payments.filter(p => p.id !== confirmDelPayment) });
-    } catch { alert('Failed to delete payment.'); }
+    } catch (err) { alert(err.response?.data?.message || 'Failed to delete payment.'); }
     setConfirmDelPayment(null);
+  };
+
+  /* One-click "Mark Received" (the received date is stamped automatically; the payment then locks) */
+  const handleMarkReceived = async () => {
+    const pay = (project.payments || []).find(p => p.id === confirmReceivePayment);
+    setConfirmReceivePayment(null);
+    if (!pay || pay.status === 'received') return;
+    try {
+      const saved = await projectService.updatePayment(project.id, pay.id, { ...pay, status:'received' });
+      updateLocal({ payments: project.payments.map(p => p.id === pay.id ? { ...p, status:'received', ...(saved || {}) } : p) });
+    } catch (err) { alert(err.response?.data?.message || 'Failed to mark payment as received.'); }
   };
 
   const handleAddBlocker = async () => {
@@ -534,10 +558,16 @@ export default function ProjectDetail() {
                   <Card key={pay.id} style={{ display:'flex', alignItems:'center', gap:14, padding:'13px 16px' }}>
                     <div style={{ width:10, height:10, borderRadius:'50%', background:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)', flexShrink:0 }}/>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:600, fontSize:14 }}>{pay.type} Payment</div>
-                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>
-                        {formatDate(pay.date)}
-                        {pay.notes && ` · ${pay.notes}`}
+                      <div style={{ fontWeight:600, fontSize:14, display:'flex', alignItems:'center', gap:6 }}>
+                        {pay.type} Payment
+                        {pay.status === 'received' && <span title="Received payments are locked" style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:10.5, fontWeight:700, color:'var(--text-muted)', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:10, padding:'1px 7px' }}><Lock size={9}/>Locked</span>}
+                      </div>
+                      <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3, display:'flex', flexWrap:'wrap', gap:'2px 12px' }}>
+                        <span><Calendar size={10} style={{ marginRight:3, verticalAlign:'-1px' }}/>Due Date: <strong style={{ color:'var(--text-dim)', fontWeight:600 }}>{formatDate(pay.date)}</strong></span>
+                        {pay.status === 'received' && (
+                          <span style={{ color:'var(--success)' }}><CheckCheck size={11} style={{ marginRight:3, verticalAlign:'-1px' }}/>Received Date: <strong style={{ fontWeight:700 }}>{pay.receivedDate ? formatDate(pay.receivedDate) : '—'}</strong></span>
+                        )}
+                        {pay.notes && <span>· {pay.notes}</span>}
                       </div>
                     </div>
                     <div style={{ textAlign:'right' }}>
@@ -549,7 +579,18 @@ export default function ProjectDetail() {
                       )}
                     </div>
                     <StatusBadge status={pay.status}/>
-                    {canManage && <ActionMenu onEdit={() => openEditPayment(pay)} onDelete={() => setConfirmDelPayment(pay.id)}/>}
+                    {canManage && pay.status !== 'received' && (
+                      <button onClick={() => setConfirmReceivePayment(pay.id)} title="Mark as received (today's date is saved automatically)"
+                        style={{ display:'flex', alignItems:'center', gap:4, padding:'4px 10px', borderRadius:5, border:'1px solid var(--success)', background:'#EDF7F2', color:'var(--success)', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                        <CheckCheck size={12}/> Mark Received
+                      </button>
+                    )}
+                    {canManage && <ActionMenu
+                      onEdit={() => openEditPayment(pay)}
+                      onDelete={() => setConfirmDelPayment(pay.id)}
+                      disabled={pay.status === 'received'}
+                      disabledTitle="This payment has been received and is locked - it can no longer be edited or deleted."
+                    />}
                   </Card>
                 ))}
               </div>
@@ -783,7 +824,7 @@ export default function ProjectDetail() {
               </Field>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Date" required error={paymentErrors.date}>
+              <Field label="Due Date" required error={paymentErrors.date}>
                 <input type="date" value={paymentForm.date} onChange={e => setPaymentForm(f=>({...f,date:e.target.value}))} style={inputStyle(paymentErrors.date)}/>
               </Field>
               <Field label="Status">
@@ -795,6 +836,11 @@ export default function ProjectDetail() {
             <Field label="Notes">
               <input value={paymentForm.notes} onChange={e => setPaymentForm(f=>({...f,notes:e.target.value}))} placeholder="e.g. Advance for Phase 1" style={inputStyle()}/>
             </Field>
+            {paymentForm.status === 'received' && (
+              <div style={{ padding:'8px 12px', borderRadius:7, background:'#EDF7F2', border:'1px solid #1A6B3C30', color:'var(--success)', fontSize:12.5, lineHeight:1.5 }}>
+                Today's date will be saved as the <strong>Received Date</strong>. After saving, this payment is locked and cannot be edited or deleted.
+              </div>
+            )}
           </div>
         </Modal>
       )}
@@ -831,6 +877,7 @@ export default function ProjectDetail() {
 
       {confirmDelMilestone   && <ConfirmModal message="Delete this milestone?"  onConfirm={handleDeleteMilestone}   onCancel={() => setConfirmDelMilestone(null)}/>}
       {confirmDelPayment     && <ConfirmModal message="Delete this payment?"    onConfirm={handleDeletePayment}     onCancel={() => setConfirmDelPayment(null)}/>}
+      {confirmReceivePayment && <ConfirmModal message="Mark this payment as received? Today's date will be saved as the received date and the payment will be locked (no further edit or delete)." onConfirm={handleMarkReceived} onCancel={() => setConfirmReceivePayment(null)}/>}
       {confirmDelBlocker     && <ConfirmModal message="Delete this blocker?"    onConfirm={handleDeleteBlocker}     onCancel={() => setConfirmDelBlocker(null)}/>}
       {confirmDelAchievement && <ConfirmModal message="Delete this win entry?"  onConfirm={handleDeleteAchievement} onCancel={() => setConfirmDelAchievement(null)}/>}
     </div>
