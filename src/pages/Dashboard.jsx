@@ -168,13 +168,13 @@ export default function Dashboard() {
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:16 }}>
             <MiniStat label="Total Received In Current Cycle" value={fmtUsd(recvUsd.total)} count={receivedInCycle.length} color="var(--success)"/>
             <MiniStat label="Total Pending In Current Cycle"  value={fmtUsd(pendUsd.total)} count={pendingInCycle.length}  color="var(--warning)"/>
-            <MiniStat label="Total Overdue Amount"            value={fmtUsd(overUsd.total)} count={overduePayments.length} color={overUsd.total>0?'var(--danger)':'var(--text-muted)'}/>
+            <MiniStat label="Total Overdue Amount In Current Cycle"            value={fmtUsd(overUsd.total)} count={overduePayments.length} color={overUsd.total>0?'var(--danger)':'var(--text-muted)'}/>
           </div>
-          {earlierOverdue.length > 0 && (
+          {/*{earlierOverdue.length > 0 && (
             <div style={{ fontSize:12, color:'var(--danger)', marginBottom:12, textAlign:'center' }}>
               Not included above: {fmtUsd(earlierUsd.total)} still unpaid from earlier cycles ({earlierOverdue.length} payment{earlierOverdue.length!==1?'s':''}).
             </div>
-          )}
+          )}*/}
           {missingUsd > 0 && (
             <div style={{ fontSize:12, color:'var(--warning)', background:'#FFF8E6', border:'1px solid #F0D9A0', borderRadius:7, padding:'7px 10px', marginBottom:12 }}>
               Some older payments have no USD value saved yet, so they are not included in these totals. Ask your developer to run <code>php artisan payments:backfill-usd</code> once.
