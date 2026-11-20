@@ -3,31 +3,25 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import {
   Card, Badge, StatusBadge, ProgressBar, Btn, Modal, Field,
-  inputStyle, ConfirmModal, ActionMenu, formatDate, EmptyState, SectionTitle,
-  formatAmount, calcRenewalDate,
+  inputStyle, formatDate, EmptyState, SectionTitle,
 } from '../components/UI';
-import ResourcePicker from '../components/ResourcePicker';
 import {
   ArrowLeft, Building2, Mail, Phone, MapPin, Globe,
-  FolderKanban, Wrench, Server, Edit2, Plus, Trash2,
+  Monitor, Smartphone, Megaphone, Server, Edit2,
 } from 'lucide-react';
 import clientService, { mapClientErrors }     from '../services/clientService';
-import clientServiceApi  from '../services/clientServiceApi';
 import { validateClientForm, normalizeWebsite } from '../utils/clientValidation';
 import { projectTypeOf } from '../utils/projectTypes';
 
 const TABS = [
   { key: 'overview',  label: 'Overview',     icon: Building2 },
-  { key: 'projects',  label: 'Projects',     icon: FolderKanban },
-  { key: 'services',  label: 'Services',     icon: Wrench },
-  { key: 'hosting',   label: 'Hosting',      icon: Server },
+  { key: 'web',       label: 'Web',              icon: Monitor },
+  { key: 'mobile',    label: 'Mobile',           icon: Smartphone },
+  { key: 'digital',   label: 'Digital',          icon: Megaphone },
+  { key: 'hosting',   label: 'Domain & Hosting', icon: Server },
 ];
 
 const INDUSTRIES = ['E-Commerce','Healthcare','Fintech','Retail','Logistics','Real Estate','HR Tech','Manufacturing','Education','Other'];
-const CONTRACT_TYPES = ['Development Maintenance','SEO','PPC Management','Social Media','Hosting & Support','Content Marketing','UI/UX Retainer','AI/ML Maintenance','Other'];
-const BILLING_CYCLES = ['monthly','quarterly','annual'];
-const BD_ROLES = ['bd', 'management', 'super_admin'];
-const PAYMENT_METHODS = ['Bank Transfer','PayPal','Stripe','Credit Card','Wire Transfer','Cheque','Other'];
 
 export default function ClientDetail() {
   const { id }     = useParams();
@@ -35,11 +29,9 @@ export default function ClientDetail() {
   const {
     clients, setClients,
     projects,
-    clientServices, setClientServices,
+    clientServices,
     hostingProjects,
-    serviceTypes,
-    currencies, activeCurrency, users,
-    fmtFor, fmtSum, canManage, canViewFinance, canEditClients,
+    fmtFor, fmtSum, canViewFinance, canEditClients,
   } = useApp();
 
   const [tab, setTab]       = useState('overview');
@@ -52,15 +44,6 @@ export default function ClientDetail() {
   const [editForm, setEditForm]     = useState({});
   const [editSaving, setEditSaving] = useState(false);
   const [editErrors, setEditErrors] = useState({});
-
-  /* Service modal */
-  const [showSvcModal, setShowSvcModal] = useState(false);
-  const [svcForm, setSvcForm]           = useState({});
-  const [svcEditing, setSvcEditing]     = useState(null);
-  const [svcSaving, setSvcSaving]       = useState(false);
-  const [svcErrors, setSvcErrors]       = useState({});
-  const [confirmDelSvc, setConfirmDelSvc] = useState(null);
-
   const numId = parseInt(id) || id;
 
   /* ── Load client ─────────────────────────────────────── */
@@ -144,70 +127,6 @@ export default function ClientDetail() {
       setEditSaving(false);
     }
   };
-
-  /* ── Services CRUD ───────────────────────────────────── */
-  const EMPTY_SVC = { bdOwner:'', resources:[], serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', status:'active', startDate:'', renewalDate:'', reportingDay:'', notes:'' };
-
-  const openAddSvc = () => {
-    setSvcForm({ ...EMPTY_SVC, clientId: client.id });
-    setSvcEditing(null); setSvcErrors({}); setShowSvcModal(true);
-  };
-
-  const openEditSvc = (cs) => {
-    setSvcForm({
-      clientId:      client.id,
-      bdOwner:       cs.bdOwner       || '',
-      resources:     cs.resourceIds   || [],
-      serviceId:     cs.serviceId     || '',
-      name:          cs.name          || '',
-      contractType:  cs.contractType  || 'Other',
-      monthlyAmount: cs.monthlyAmount || '',
-      currencyId:    cs.currencyId    || '',
-      billingCycle:  cs.billingCycle  || 'monthly',
-      paymentMethod: cs.paymentMethod || '',
-      status:        cs.status        || 'active',
-      startDate:     cs.startDate     || '',
-      renewalDate:   cs.renewalDate   || '',
-      reportingDay:  cs.reportingDay  || '',
-      notes:         cs.notes         || '',
-    });
-    setSvcEditing(cs.id); setSvcErrors({}); setShowSvcModal(true);
-  };
-
-  const handleSaveSvc = async () => {
-    if (!svcForm.name?.trim())    { setSvcErrors({ name: 'Required' }); return; }
-    if (!svcForm.monthlyAmount)   { setSvcErrors({ monthlyAmount: 'Required' }); return; }
-    setSvcSaving(true);
-    try {
-      const payload = {
-        ...svcForm,
-        clientId:      parseInt(svcForm.clientId),
-        serviceId:     svcForm.serviceId ? parseInt(svcForm.serviceId) : null,
-        monthlyAmount: parseFloat(svcForm.monthlyAmount) || 0,
-      };
-      if (svcEditing) {
-        const updated = await clientServiceApi.update(svcEditing, payload);
-        setClientServices(prev => prev.map(cs => cs.id === svcEditing ? updated : cs));
-      } else {
-        const created = await clientServiceApi.create(payload);
-        setClientServices(prev => [created, ...prev]);
-      }
-      setShowSvcModal(false);
-    } catch (err) {
-      setSvcErrors({ api: err.response?.data?.message || 'Failed to save.' });
-    } finally {
-      setSvcSaving(false);
-    }
-  };
-
-  const handleDeleteSvc = async () => {
-    try {
-      await clientServiceApi.delete(confirmDelSvc);
-      setClientServices(prev => prev.filter(cs => cs.id !== confirmDelSvc));
-    } catch { alert('Failed to delete service.'); }
-    setConfirmDelSvc(null);
-  };
-
   /* ── Render states ───────────────────────────────────── */
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:300, color:'var(--text-muted)', fontSize:14 }}>
@@ -223,7 +142,6 @@ export default function ClientDetail() {
     </div>
   );
 
-  const canEdit = canManage;
   const visibleTabs = TABS.filter(t => canViewFinance || t.key !== 'hosting');
 
   return (
@@ -271,11 +189,18 @@ export default function ClientDetail() {
 
       {/* ── Tabs ──────────────────────────────────────── */}
       <div style={{ display:'flex', gap:0, background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:4, marginBottom:20, width:'fit-content' }}>
-        {visibleTabs.map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setTab(key)} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:7, border:'none', cursor:'pointer', background:tab===key?'#1B2E6B':'transparent', color:tab===key?'#fff':'var(--text-muted)', fontSize:14, fontWeight:tab===key?700:400, transition:'all 0.13s', fontFamily:'var(--font-body)' }}>
-            <Icon size={14}/>{label}
-          </button>
-        ))}
+        {visibleTabs.map(({ key, label, icon: Icon }) => {
+          const count = CATEGORY_BLOCKS.find(b => b.key === key)?.count;
+          const active = tab === key;
+          return (
+            <button key={key} onClick={() => setTab(key)} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 18px', borderRadius:7, border:'none', cursor:'pointer', background:active?'#1B2E6B':'transparent', color:active?'#fff':'var(--text-muted)', fontSize:14, fontWeight:active?700:400, transition:'all 0.13s', fontFamily:'var(--font-body)' }}>
+              <Icon size={14}/>{label}
+              {count !== undefined && (
+                <span style={{ minWidth:20, padding:'1px 7px', borderRadius:10, fontSize:12, fontWeight:700, lineHeight:'18px', textAlign:'center', background:active?'rgba(255,255,255,0.22)':'var(--bg-elevated)', color:active?'#fff':'var(--text-muted)' }}>{count}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* ══ OVERVIEW TAB ════════════════════════════════ */}
@@ -329,50 +254,13 @@ export default function ClientDetail() {
             }
           </Card>
 
-          {/* Projects by category: Web · Mobile · Digital */}
-          <Card style={{ gridColumn:'1 / -1' }}>
-            <SectionTitle>Projects by Category</SectionTitle>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:14 }}>
-              {CATEGORY_BLOCKS.map(b => (
-                <div key={b.key} style={{ border:'1px solid var(--border)', borderTop:`3px solid ${b.color}`, borderRadius:10, padding:'12px 14px', background:'var(--bg-card)' }}>
-                  <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:8, cursor:'pointer' }} onClick={() => setTab('projects')}>
-                    <span style={{ fontSize:14, fontWeight:700, color:b.color }}>{b.title}</span>
-                    <span style={{ fontSize:12, color:'var(--text-muted)' }}><strong style={{ fontSize:20, color:b.color }}>{b.count}</strong> · {b.active} active</span>
-                  </div>
-                  {b.count === 0
-                    ? <div style={{ fontSize:13, color:'var(--text-muted)', padding:'8px 0' }}>No {b.title.toLowerCase()}s yet.</div>
-                    : <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                        {b.list.slice(0,5).map(p => (
-                          <div key={'p'+p.id} onClick={() => navigate(`/projects/${p.id}`)} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:7, background:'var(--bg-elevated)', cursor:'pointer' }}>
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ fontSize:13, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.name}</div>
-                              <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.category} · {p.completion||0}%</div>
-                            </div>
-                            <StatusBadge status={p.status}/>
-                          </div>
-                        ))}
-                        {b.contracts.slice(0,5).map(c => (
-                          <div key={'c'+c.id} onClick={() => navigate(`/maintenance/${c.id}`)} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:7, background:'var(--bg-elevated)', cursor:'pointer' }}>
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ fontSize:13, fontWeight:600, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{c.name}</div>
-                              <div style={{ fontSize:11, color:'var(--text-muted)' }}>Contract{c.contractType ? ` · ${c.contractType}` : ''}</div>
-                            </div>
-                            <StatusBadge status={c.status}/>
-                          </div>
-                        ))}
-                        {b.count > 5 && <div style={{ fontSize:12, color:'#2E6DB4', cursor:'pointer', paddingTop:2 }} onClick={() => setTab('projects')}>View all {b.count} →</div>}
-                      </div>}
-                </div>
-              ))}
-            </div>
-          </Card>
         </div>
       )}
 
-      {/* ══ PROJECTS TAB ════════════════════════════════ */}
-      {tab === 'projects' && (
+      {/* ══ WEB / MOBILE / DIGITAL TABS ═════════════════ */}
+      {['web', 'mobile', 'digital'].includes(tab) && (
         <div style={{ display:'flex', flexDirection:'column', gap:22 }}>
-          {CATEGORY_BLOCKS.map(b => (
+          {CATEGORY_BLOCKS.filter(b => b.key === tab).map(b => (
             <div key={b.key}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
                 <div style={{ width:4, height:20, borderRadius:3, background:b.color }}/>
@@ -420,62 +308,6 @@ export default function ClientDetail() {
           ))}
         </div>
       )}
-
-      {/* ══ SERVICES TAB ════════════════════════════════ */}
-      {tab === 'services' && (
-        <div>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-            <div style={{ fontSize:14, color:'var(--text-muted)' }}>{clientSvcs.length} service contract{clientSvcs.length !== 1 ? 's' : ''}</div>
-            {canEdit && <Btn icon={<Plus size={13}/>} onClick={openAddSvc}>Add Service</Btn>}
-          </div>
-
-          {clientSvcs.length === 0
-            ? <EmptyState icon="🔧" message="No service contracts for this client."/>
-            : (
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {clientSvcs.map(cs => {
-                  const svc = serviceTypes.find(s => s.id === cs.serviceId || s.id === parseInt(cs.serviceId));
-                  return (
-                    <Card key={cs.id} hover onClick={() => navigate(`/maintenance/${cs.id}`)} style={{ display:'flex', alignItems:'center', gap:14 }}>
-                      <div style={{ width:40, height:40, borderRadius:9, background:'var(--bg-elevated)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
-                        {svc?.icon || '🔧'}
-                      </div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontWeight:700, fontSize:14 }}>{cs.name}</div>
-                        <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
-                          {cs.contractType} · {cs.billingCycle} billing
-                          {cs.startDate ? ` · Started ${formatDate(cs.startDate)}` : ''}
-                          {canViewFinance && cs.paymentMethod ? ` · ${cs.paymentMethod}` : ''}
-                          {cs.reportingDay ? ` · Reports on the ${cs.reportingDay}${ordinalSuffix(cs.reportingDay)} of every month` : ''}
-                        </div>
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:5 }}>
-                        {canViewFinance && <span style={{ fontSize:18, fontWeight:700, color:'var(--success)' }}>{formatAmount(cs.monthlyAmount, cs.currency || activeCurrency)}<span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)' }}>/mo</span></span>}
-                        <StatusBadge status={cs.status}/>
-                      </div>
-                      {canEdit && (
-                        <ActionMenu
-                          onEdit={() => openEditSvc(cs)}
-                          onDelete={() => setConfirmDelSvc(cs.id)}
-                        />
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            )
-          }
-
-          {/* Monthly total */}
-          {canViewFinance && clientSvcs.length > 0 && (
-            <Card style={{ marginTop:14, padding:'13px 18px', background:'#EDF4FB', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <span style={{ fontSize:14, fontWeight:600, color:'#1B2E6B' }}>Total Monthly Revenue</span>
-              <span style={{ fontSize:22, fontWeight:800, color:'var(--success)' }}>{monthlyRevenue}/mo</span>
-            </Card>
-          )}
-        </div>
-      )}
-
       {/* ══ HOSTING TAB ═════════════════════════════════ */}
       {tab === 'hosting' && canViewFinance && (
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -566,98 +398,6 @@ export default function ClientDetail() {
           </div>
         </Modal>
       )}
-
-      {/* ── Service Modal ─────────────────────────────── */}
-      {showSvcModal && (
-        <Modal title={svcEditing?'Edit Service Contract':'Add Service Contract'} onClose={() => setShowSvcModal(false)} width={560}
-          footer={<><Btn variant="ghost" onClick={() => setShowSvcModal(false)}>Cancel</Btn><Btn onClick={handleSaveSvc} disabled={svcSaving}>{svcSaving?'Saving…':svcEditing?'Save Changes':'Add Service'}</Btn></>}
-        >
-          <div style={{ display:'flex', flexDirection:'column', gap:13 }}>
-            {svcErrors.api && <div style={{ padding:'8px 12px', borderRadius:7, background:'var(--danger-dim)', color:'var(--danger)', fontSize:13 }}>{svcErrors.api}</div>}
-            <Field label="Contract / Service Name" required error={svcErrors.name}>
-              <input value={svcForm.name||''} onChange={e => setSvcForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Monthly SEO Retainer" style={inputStyle(svcErrors.name)} autoFocus/>
-            </Field>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Contract Type">
-                <select value={svcForm.contractType||'SEO'} onChange={e => setSvcForm(f=>({...f,contractType:e.target.value}))} style={inputStyle()}>
-                  {CONTRACT_TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
-              </Field>
-              <Field label="Service Catalogue">
-                <select value={svcForm.serviceId||''} onChange={e => setSvcForm(f=>({...f,serviceId:e.target.value}))} style={inputStyle()}>
-                  <option value="">None / Custom</option>
-                  {serviceTypes.map(s => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
-                </select>
-              </Field>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="Monthly Amount" required error={svcErrors.monthlyAmount}>
-                <input type="number" value={svcForm.monthlyAmount||''} onChange={e => setSvcForm(f=>({...f,monthlyAmount:e.target.value}))} placeholder="15000" style={inputStyle(svcErrors.monthlyAmount)}/>
-              </Field>
-              <Field label="Currency">
-                <select value={svcForm.currencyId||''} onChange={e => setSvcForm(f=>({...f,currencyId:e.target.value}))} style={inputStyle()}>
-                  <option value="">Default ({activeCurrency?.code})</option>
-                  {currencies.map(c => <option key={c.id} value={c.id}>{c.code} ({c.symbol})</option>)}
-                </select>
-              </Field>
-              <Field label="Billing Cycle">
-                <select value={svcForm.billingCycle||'monthly'} onChange={e => setSvcForm(f=>({...f,billingCycle:e.target.value,renewalDate:f.startDate?calcRenewalDate(f.startDate,e.target.value):f.renewalDate}))} style={inputStyle()}>
-                  {BILLING_CYCLES.map(b => <option key={b} value={b} style={{textTransform:'capitalize'}}>{b}</option>)}
-                </select>
-              </Field>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Field label="Payment Method">
-                <select value={svcForm.paymentMethod||''} onChange={e => setSvcForm(f=>({...f,paymentMethod:e.target.value}))} style={inputStyle()}>
-                  <option value="">Select…</option>
-                  {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
-                </select>
-              </Field>
-              <Field label="Status">
-                <select value={svcForm.status||'active'} onChange={e => setSvcForm(f=>({...f,status:e.target.value}))} style={inputStyle()}>
-                  <option value="active">Active</option>
-                  <option value="paused">Paused</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </Field>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-              <Field label="Start Date">
-                <input type="date" value={svcForm.startDate||''} onChange={e => setSvcForm(f=>({...f,startDate:e.target.value,renewalDate:calcRenewalDate(e.target.value,f.billingCycle||'monthly')}))} style={inputStyle()}/>
-              </Field>
-              <Field label="Renewal Date (auto)">
-                <input type="date" value={svcForm.renewalDate||''} onChange={e => setSvcForm(f=>({...f,renewalDate:e.target.value}))} style={inputStyle()}/>
-              </Field>
-              <Field label="Monthly Reporting Day">
-                <input type="number" min={1} max={31} value={svcForm.reportingDay||''} onChange={e => setSvcForm(f=>({...f,reportingDay:e.target.value}))} placeholder="e.g. 5" style={inputStyle()}/>
-              </Field>
-            </div>
-            <Field label="BD Owner">
-              <select value={svcForm.bdOwner||''} onChange={e => setSvcForm(f=>({...f,bdOwner:e.target.value}))} style={inputStyle()}>
-                <option value="">Unassigned</option>
-                {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </Field>
-            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" value={svcForm.resources||[]} onChange={v => setSvcForm(f=>({...f,resources:v}))} />
-            <Field label="Notes">
-              <textarea value={svcForm.notes||''} onChange={e => setSvcForm(f=>({...f,notes:e.target.value}))} rows={2} style={{...inputStyle(), resize:'vertical'}} placeholder="Scope details, SLA…"/>
-            </Field>
-          </div>
-        </Modal>
-      )}
-
-      {confirmDelSvc && (
-        <ConfirmModal message="Remove this service contract?" onConfirm={handleDeleteSvc} onCancel={() => setConfirmDelSvc(null)}/>
-      )}
     </div>
   );
-}
-
-function ordinalSuffix(day) {
-  const n = parseInt(day);
-  if (isNaN(n)) return '';
-  if (n % 10 === 1 && n !== 11) return 'st';
-  if (n % 10 === 2 && n !== 12) return 'nd';
-  if (n % 10 === 3 && n !== 13) return 'rd';
-  return 'th';
 }
