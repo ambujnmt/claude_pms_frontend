@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { formatAmount, formatTotals, totalsParts } from '../components/UI';
 
@@ -77,6 +77,44 @@ export function AppProvider({ children }) {
     });
     return { total, missing };
   }, [currencyOf]);
+  /* ── USD at TODAY's live rate (budgets, contract values) ───────────
+     Payments use the rate locked on the day they were added (above). Budgets have no such
+     history, so they are converted with today's rate from /currencies/usd-rates.
+     usdRates: { INR: { rate, date, source } | null, ... }  -> rate = USD for 1 unit. */
+  const [liveUsdRates, setUsdRates] = useState({});
+  /* Fallback when the live-rate API is unreachable: the most recent rate saved on a payment
+     in that currency (same "last-known" fallback the backend uses). Marked source:'last payment'. */
+  const usdRates = useMemo(() => {
+    const out = { ...liveUsdRates };
+    const latest = {};
+    projects.forEach(p => (p.payments || []).forEach(pay => {
+      const code = (pay.currencyCode || '').toUpperCase();
+      const rate = Number(pay.exchangeRate);
+      if (!code || !(rate > 0)) return;
+      const d = pay.rateDate || '';
+      if (!latest[code] || d > latest[code].date) latest[code] = { rate, date: d, source: 'last payment' };
+    }));
+    Object.entries(latest).forEach(([code, fx]) => { if (!(Number(out[code]?.rate) > 0)) out[code] = fx; });
+    return out;
+  }, [liveUsdRates, projects]);
+  const toUsd = useCallback((entity, amount) => {
+    const n = Number(amount) || 0;
+    if (!n) return 0;
+    const code = (currencyOf(entity)?.code || '').toUpperCase();
+    if (code === 'USD') return n;
+    const rate = Number(usdRates[code]?.rate);
+    return rate > 0 ? n * rate : null;                     // null = no rate available for this currency
+  }, [currencyOf, usdRates]);
+  /* Sum in USD. `missing` lists items that could not be converted (never silently counted as 0). */
+  const usdSum = useCallback((items, getAmount) => {
+    let total = 0; const missing = [];
+    items.forEach(it => {
+      const v = toUsd(it, getAmount(it));
+      if (v === null) missing.push(it); else total += v;
+    });
+    return { total: Math.round(total * 100) / 100, missing };
+  }, [toUsd]);
+
   const fmtSum = useCallback((items, getAmount) => formatTotals(items, getAmount, currencyOf, formatAmount(0, activeCurrency)), [currencyOf, activeCurrency]);
 
   const loadAllData = useCallback(async () => {
@@ -169,6 +207,14 @@ export function AppProvider({ children }) {
     settingsService.getBillingCycle().then(setBillingCycle).catch(() => setBillingCycle(null));
   }, [user, canViewFinance]);
 
+  /* Live USD rates (finance roles only). Reloaded when currencies change (e.g. one is added). */
+  const currencyCodesKey = currencies.map(c => c.code).sort().join(',');
+  const loadUsdRates = useCallback(() => {
+    if (!user || !canViewFinance) { setUsdRates({}); return Promise.resolve(); }
+    return currencyService.getUsdRates().then(setUsdRates).catch(() => setUsdRates({}));
+  }, [user, canViewFinance]);
+  useEffect(() => { loadUsdRates(); }, [loadUsdRates, currencyCodesKey]);
+
   /* Currency CRUD */
   const addCurrency    = (c)        => setCurrencies(prev => [...prev, c]);
   const updateCurrency = (id, data) => {
@@ -246,6 +292,7 @@ export function AppProvider({ children }) {
       currencies, setCurrencies,
       activeCurrency, setActiveCurrency,
       fmt, currencyOf, fmtFor, fmtSum, fmtParts, fmtUsd, usdTotal,
+      usdRates, toUsd, usdSum, loadUsdRates,
       billingCycle, setBillingCycle,
       addCurrency, updateCurrency, deleteCurrency, setDefaultCurrency,
 

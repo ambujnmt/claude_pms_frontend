@@ -1,3 +1,4 @@
+import { pmOwnerOptions } from '../utils/pmOwners';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -13,7 +14,6 @@ import projectService from '../services/projectService';
 
 const COLORS = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B1C1C','#A85010'];
 const BD_ROLES = ['bd', 'management', 'super_admin'];
-const PM_ROLES = ['pm', 'management', 'super_admin'];
 
 export default function ProjectsPage() {
   const { projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance, showAddProject, openAddProject, dataLoading } = useApp();
@@ -210,7 +210,7 @@ export default function ProjectsPage() {
               <Field label="PM Owner">
                 <select value={editForm.pmOwner} onChange={e=>eSet('pmOwner',e.target.value)} style={inputStyle()}>
                   <option value="">Unassigned</option>
-                  {users.filter(u=>PM_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  {pmOwnerOptions(users, editForm.pmOwner).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </Field>
             </div>

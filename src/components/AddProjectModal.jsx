@@ -1,3 +1,4 @@
+import { pmOwnerOptions } from '../utils/pmOwners';
 import { categoryForType, isSeoCategory } from '../utils/projectTypes';
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -201,7 +202,7 @@ export default function AddProjectModal() {
             <Field label="PM Owner">
               <select value={form.pmOwner} onChange={e => set('pmOwner', e.target.value)} style={inputStyle()}>
                 <option value="">Select PM owner…</option>
-                {users.filter(u => ['pm','management','super_admin'].includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {pmOwnerOptions(users, form.pmOwner).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </Field>
           </div>

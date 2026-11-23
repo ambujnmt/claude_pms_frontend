@@ -1,3 +1,4 @@
+import { pmOwnerOptions } from '../utils/pmOwners';
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -30,7 +31,6 @@ const PAYMENT_STATUSES   = ['upcoming','pending','received'];
 const BLOCKER_TYPES      = ['communication','technical','resource','client-delay','scope-change','other'];
 const COLORS             = ['#1B2E6B','#2E6DB4','#4A90D9','#4C3A9E','#1A6B3C','#8B5E0A','#9B1C1C','#A85010'];
 const BD_ROLES           = ['bd','management','super_admin'];
-const PM_ROLES           = ['pm','management','super_admin'];
 
 const STATUS_COLOR = {
   completed:     'var(--success)',
@@ -754,7 +754,7 @@ export default function ProjectDetail() {
               <Field label="PM Owner">
                 <select value={editForm.pmOwner||''} onChange={e => setEditForm(f=>({...f,pmOwner:e.target.value}))} style={inputStyle()}>
                   <option value="">Unassigned</option>
-                  {users.filter(u => PM_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  {pmOwnerOptions(users, editForm.pmOwner).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </Field>
             </div>

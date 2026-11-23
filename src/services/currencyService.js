@@ -21,6 +21,12 @@ const currencyService = {
     await api.delete(`/currencies/${id}`);
   },
 
+  /* Today's live rate -> USD for every currency: { INR: { rate, date, source } | null, ... } */
+  getUsdRates: async () => {
+    const { data } = await api.get('/currencies/usd-rates');
+    return data.data || {};
+  },
+
   setDefault: async (id) => {
     const { data } = await api.put(`/currencies/${id}/set-default`);
     return data.data;
