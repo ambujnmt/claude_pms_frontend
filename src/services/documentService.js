@@ -1,6 +1,6 @@
 import api from './api';
 
-export const DOC_CATEGORIES = ['Requirement', 'Design', 'Contract', 'Invoice', 'Report', 'Other'];
+export const DOC_CATEGORIES = ['Requirement', 'Design', 'Contract', 'Invoice', 'Report', 'Proposal / Scope', 'Other'];
 export const FINANCE_DOC_CATEGORIES = ['Contract', 'Invoice'];
 export const MAX_DOC_MB = 10;
 export const ALLOWED_EXT = ['pdf','doc','docx','xls','xlsx','ppt','pptx','csv','txt','png','jpg','jpeg','webp','gif','zip','fig','sketch'];
