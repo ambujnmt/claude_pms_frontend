@@ -760,7 +760,7 @@ export default function ProjectDetail() {
             </div>
 
             {/* Resources multi-select */}
-            <ResourcePicker label="Resources (developers, designers, QA, etc.)" value={editForm.resources||[]} onChange={(v) => setEditForm(f=>({...f,resources:v}))} />
+            <ResourcePicker label="Resources (developers, designers, QA, etc.)" pmOwner={editForm.pmOwner} value={editForm.resources||[]} onChange={(v) => setEditForm(f=>({...f,resources:v}))} />
 
             <Field label="Description">
               <textarea value={editForm.description} onChange={e => setEditForm(f=>({...f,description:e.target.value}))} rows={2} style={{...inputStyle(),resize:'vertical'}}/>

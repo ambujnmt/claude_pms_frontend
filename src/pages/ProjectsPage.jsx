@@ -216,7 +216,7 @@ export default function ProjectsPage() {
             </div>
 
             {/* Resources multi-select */}
-            <ResourcePicker label="Resources (developers, designers, QA, etc.)" value={editForm.resources||[]} onChange={(v) => eSet('resources', v)} />
+            <ResourcePicker label="Resources (developers, designers, QA, etc.)" pmOwner={editForm.pmOwner} value={editForm.resources||[]} onChange={(v) => eSet('resources', v)} />
 
             <Field label="Description"><textarea value={editForm.description} onChange={e=>eSet('description',e.target.value)} rows={2} style={{...inputStyle(),resize:'vertical'}}/></Field>
             <Field label="Client Commitment"><textarea value={editForm.clientCommitment} onChange={e=>eSet('clientCommitment',e.target.value)} rows={2} style={{...inputStyle(),resize:'vertical',borderColor:'#8B5E0A50'}}/></Field>

@@ -32,6 +32,7 @@ function toSnake(cs) {
   return {
     client_id:       cs.clientId ? parseInt(cs.clientId) : undefined,
     bd_owner_id:     cs.bdOwner ? parseInt(cs.bdOwner) : null,
+    pm_owner_id:     cs.pmOwner ? parseInt(cs.pmOwner) : null,
     resources:       (cs.resources || []).map(id => parseInt(id)),
     service_type_id: cs.serviceId ? parseInt(cs.serviceId) : null,
     name:            cs.name,

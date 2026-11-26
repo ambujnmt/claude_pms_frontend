@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card, PageHeader, Table, TR, TD, Badge, StatusBadge, ActionMenu, Modal, Field, inputStyle, Btn, ConfirmModal, formatDate, EmptyState, formatAmount, calcRenewalDate } from '../components/UI';
 import ResourcePicker from '../components/ResourcePicker';
+import { pmOwnerOptions } from '../utils/pmOwners';
 import { Plus, Wrench, TrendingUp, Users, AlertCircle } from 'lucide-react';
 import clientServiceApi from '../services/clientServiceApi';
 
@@ -25,7 +26,7 @@ const TYPE_COLOR = {
 
 const BD_ROLES = ['bd', 'management', 'super_admin'];
 
-const EMPTY = { clientId:'', bdOwner:'', resources:[], serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', startDate:'', renewalDate:'', reportingDay:'', status:'active', notes:'' };
+const EMPTY = { clientId:'', bdOwner:'', pmOwner:'', resources:[], serviceId:'', name:'', contractType:'SEO', monthlyAmount:'', currencyId:'', billingCycle:'monthly', paymentMethod:'', startDate:'', renewalDate:'', reportingDay:'', status:'active', notes:'' };
 
 export default function MaintenancePage() {
   const navigate = useNavigate();
@@ -96,7 +97,7 @@ export default function MaintenancePage() {
 
   const openAdd  = () => { setForm(EMPTY); setEditing(null); setErrors({}); setShowModal(true); };
   const openEdit = (cs) => {
-    setForm({ clientId: cs.clientId, bdOwner: cs.bdOwner||'', resources: cs.resourceIds||[], serviceId: cs.serviceId||'', name: cs.name, contractType: cs.contractType||'Other', monthlyAmount: cs.monthlyAmount, currencyId: cs.currencyId||'', billingCycle: cs.billingCycle||'monthly', paymentMethod: cs.paymentMethod||'', startDate: cs.startDate||'', renewalDate: cs.renewalDate||'', reportingDay: cs.reportingDay||'', status: cs.status, notes: cs.notes||'' });
+    setForm({ clientId: cs.clientId, bdOwner: cs.bdOwner||'', pmOwner: cs.pmOwner||'', resources: cs.resourceIds||[], serviceId: cs.serviceId||'', name: cs.name, contractType: cs.contractType||'Other', monthlyAmount: cs.monthlyAmount, currencyId: cs.currencyId||'', billingCycle: cs.billingCycle||'monthly', paymentMethod: cs.paymentMethod||'', startDate: cs.startDate||'', renewalDate: cs.renewalDate||'', reportingDay: cs.reportingDay||'', status: cs.status, notes: cs.notes||'' });
     setEditing(cs.id); setErrors({}); setShowModal(true);
   };
 
@@ -298,13 +299,21 @@ export default function MaintenancePage() {
                 <input type="number" min={1} max={31} value={form.reportingDay} onChange={e => set('reportingDay', e.target.value)} placeholder="e.g. 5" style={inputStyle()}/>
               </Field>
             </div>
-            <Field label="BD Owner">
-              <select value={form.bdOwner} onChange={e => set('bdOwner', e.target.value)} style={inputStyle()}>
-                <option value="">Unassigned</option>
-                {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </Field>
-            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" value={form.resources||[]} onChange={v => set('resources', v)} />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="BD Owner">
+                <select value={form.bdOwner} onChange={e => set('bdOwner', e.target.value)} style={inputStyle()}>
+                  <option value="">Unassigned</option>
+                  {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+              <Field label="PM Owner">
+                <select value={form.pmOwner} onChange={e => set('pmOwner', e.target.value)} style={inputStyle()}>
+                  <option value="">Select PM owner…</option>
+                  {pmOwnerOptions(users, form.pmOwner).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+            </div>
+            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" pmOwner={form.pmOwner} value={form.resources||[]} onChange={v => set('resources', v)} />
             <Field label="Notes">
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={2} placeholder="Scope, SLA details…" style={{ ...inputStyle(), resize:'vertical' }}/>
             </Field>

@@ -7,6 +7,7 @@ import {
   Avatar,
 } from '../components/UI';
 import ResourcePicker from '../components/ResourcePicker';
+import { pmOwnerOptions } from '../utils/pmOwners';
 import { ArrowLeft, Edit2, Trash2, CalendarClock, FileText, Wrench } from 'lucide-react';
 import clientServiceApi from '../services/clientServiceApi';
 
@@ -111,7 +112,7 @@ export default function MaintenanceDetail() {
 
   const openEdit = () => {
     setForm({
-      clientId: svc.clientId, bdOwner: svc.bdOwner || '', resources: svc.resourceIds || [],
+      clientId: svc.clientId, bdOwner: svc.bdOwner || '', pmOwner: svc.pmOwner || '', resources: svc.resourceIds || [],
       serviceId: svc.serviceId || '', name: svc.name || '', contractType: svc.contractType || 'Other',
       monthlyAmount: svc.monthlyAmount ?? '', currencyId: svc.currencyId || '', billingCycle: svc.billingCycle || 'monthly',
       paymentMethod: svc.paymentMethod || '', status: svc.status || 'active', startDate: svc.startDate || '',
@@ -138,7 +139,7 @@ export default function MaintenanceDetail() {
   const quickStatus = async (status) => {
     try {
       applyUpdate(await clientServiceApi.update(svc.id, {
-        ...svc, status, clientId: svc.clientId, bdOwner: svc.bdOwner, resources: svc.resourceIds || [],
+        ...svc, status, clientId: svc.clientId, bdOwner: svc.bdOwner, pmOwner: svc.pmOwner, resources: svc.resourceIds || [],
       }));
     } catch { alert('Failed to update status.'); }
   };
@@ -255,6 +256,7 @@ export default function MaintenanceDetail() {
                 { label:'Renewal Date', value: svc.renewalDate ? formatDate(svc.renewalDate) : null },
                 { label:'Monthly Reporting', value: svc.reportingDay ? `${svc.reportingDay}${ordinal(svc.reportingDay)} of every month` : null },
                 { label:'BD Owner', value: svc.bdOwnerName },
+                { label:'PM Owner', value: svc.pmOwnerName },
               ].filter(r => r.value && r.value !== '—').map(row => (
                 <div key={row.label} style={{ display:'flex', justifyContent:'space-between', fontSize:14, paddingBottom:8, borderBottom:'1px solid var(--border)' }}>
                   <span style={{ color:'var(--text-muted)', fontWeight:600 }}>{row.label}</span>
@@ -269,6 +271,8 @@ export default function MaintenanceDetail() {
               <SectionTitle>Team</SectionTitle>
               <div style={{ fontSize:12, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6 }}>BD Owner</div>
               <div style={{ fontSize:14, marginBottom:14 }}>{svc.bdOwnerName || <span style={{ color:'var(--text-muted)' }}>Unassigned</span>}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6 }}>PM Owner</div>
+              <div style={{ fontSize:14, marginBottom:14 }}>{svc.pmOwnerName || <span style={{ color:'var(--text-muted)' }}>Unassigned</span>}</div>
               <div style={{ fontSize:12, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:8 }}>Resources</div>
               {resources.length === 0
                 ? <div style={{ fontSize:13, color:'var(--text-muted)' }}>No resources assigned yet.</div>
@@ -388,13 +392,21 @@ export default function MaintenanceDetail() {
                 {PAYMENT_METHODS.map(p => <option key={p}>{p}</option>)}
               </select>
             </Field>
-            <Field label="BD Owner">
-              <select value={form.bdOwner} onChange={e => set('bdOwner', e.target.value)} style={inputStyle()}>
-                <option value="">Unassigned</option>
-                {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-              </select>
-            </Field>
-            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" value={form.resources || []} onChange={v => set('resources', v)} />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              <Field label="BD Owner">
+                <select value={form.bdOwner} onChange={e => set('bdOwner', e.target.value)} style={inputStyle()}>
+                  <option value="">Unassigned</option>
+                  {users.filter(u => BD_ROLES.includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+              <Field label="PM Owner">
+                <select value={form.pmOwner} onChange={e => set('pmOwner', e.target.value)} style={inputStyle()}>
+                  <option value="">Select PM owner…</option>
+                  {pmOwnerOptions(users, form.pmOwner).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </Field>
+            </div>
+            <ResourcePicker label="Resources (developers, designers, SEO, QA, etc.)" pmOwner={form.pmOwner} value={form.resources || []} onChange={v => set('resources', v)} />
             <Field label="Notes">
               <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3} style={{ ...inputStyle(), resize:'vertical' }}/>
             </Field>

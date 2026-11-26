@@ -206,7 +206,7 @@ export default function AddProjectModal() {
               </select>
             </Field>
           </div>
-          <ResourcePicker label="Resources (developers, designers, QA, etc.)" value={form.resources} onChange={(v) => set('resources', v)} />
+          <ResourcePicker label="Resources (developers, designers, QA, etc.)" pmOwner={form.pmOwner} value={form.resources} onChange={(v) => set('resources', v)} />
         </div>
       )}
 
