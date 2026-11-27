@@ -59,6 +59,12 @@ export function AppProvider({ children }) {
     entity?.currency || currencies.find(c => String(c.id) === String(entity?.currencyId)) || activeCurrency,
   [currencies, activeCurrency]);
   const fmtFor = useCallback((entity, value) => formatAmount(value, currencyOf(entity)), [currencyOf]);
+  /* A payment is shown in the currency its USD value was locked in (payment.currencyCode),
+     so the amount and its "≈ $ USD" value can never disagree. Falls back to the project currency. */
+  const paymentCurrency = useCallback((pay, project) =>
+    (pay?.currencyCode && currencies.find(c => (c.code || '').toUpperCase() === String(pay.currencyCode).toUpperCase())) || currencyOf(project),
+  [currencies, currencyOf]);
+  const fmtPayment = useCallback((pay, project) => formatAmount(pay?.amount, paymentCurrency(pay, project)), [paymentCurrency]);
   /* Aggregate across entities WITHOUT mixing currencies: "$1.0K + ₹4.5L" */
   // one entry per currency, e.g. [{code:'AUD', text:'A$9,000'}, {code:'USD', text:'$16,850'}]
   const fmtParts = useCallback((items, getAmount) => totalsParts(items, getAmount, currencyOf), [currencyOf]);
@@ -291,7 +297,7 @@ export function AppProvider({ children }) {
 
       currencies, setCurrencies,
       activeCurrency, setActiveCurrency,
-      fmt, currencyOf, fmtFor, fmtSum, fmtParts, fmtUsd, usdTotal,
+      fmt, currencyOf, fmtFor, fmtSum, fmtParts, fmtUsd, usdTotal, paymentCurrency, fmtPayment,
       usdRates, toUsd, usdSum, loadUsdRates,
       billingCycle, setBillingCycle,
       addCurrency, updateCurrency, deleteCurrency, setDefaultCurrency,

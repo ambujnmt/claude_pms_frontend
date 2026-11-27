@@ -19,6 +19,7 @@ const TITLES = {
   '/profile':      'Profile Settings',
   '/domains':      'Domains',
   '/currencies':   'Currencies',
+  '/payments':     'Payments',
   '/settings/billing-cycle':  'Billing Cycle',
 };
 

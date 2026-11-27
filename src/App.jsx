@@ -21,6 +21,7 @@ import TicketsPage         from './pages/TicketsPage';
 import { BillingCycleSettings } from './pages/SettingsPage';
 import DomainsPage         from './pages/DomainsPage';
 import ProfilePage         from './pages/ProfilePage';
+import PaymentsPage        from './pages/PaymentsPage';
 
 /* Pages execution roles (developer, designer, ...) must never reach, even by typing the URL */
 function ManagersOnly({ children }) {
@@ -68,6 +69,7 @@ export default function App() {
               <Route path="projects"         element={<ProjectsPage />} />
               <Route path="projects/:id"     element={<ProjectDetail />} />
               <Route path="milestones" element={<ManagersOnly><MilestonesPage /></ManagersOnly>} />
+              <Route path="payments" element={<ManagersOnly><PaymentsPage /></ManagersOnly>} />
               <Route path="resources" element={<ManagersOnly><ResourcesPage /></ManagersOnly>} />
               <Route path="team" element={<ManagersOnly><TeamPage /></ManagersOnly>} />
               <Route path="categories" element={<ManagersOnly><CategoryPage /></ManagersOnly>} />
@@ -75,7 +77,7 @@ export default function App() {
               <Route path="services" element={<ManagersOnly><ServicesPage /></ManagersOnly>} />
               <Route path="maintenance"      element={<MaintenancePage />} />
               <Route path="maintenance/:id"  element={<MaintenanceDetail />} />
- <Route path="settings" element={<Navigate to="/settings/billing-cycle" replace />} />
+              <Route path="settings" element={<Navigate to="/settings/billing-cycle" replace />} />
               <Route path="settings/billing-cycle"  element={<SuperAdminOnly><BillingCycleSettings /></SuperAdminOnly>} />
               <Route path="currencies" element={<ManagersOnly><CurrenciesPage /></ManagersOnly>} />
               <Route path="*" element={<Navigate to="/" />} />

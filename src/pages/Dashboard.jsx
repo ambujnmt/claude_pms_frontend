@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card, StatusBadge, ProgressBar, Badge, formatDate, PageHeader, Btn } from '../components/UI';
@@ -8,7 +8,8 @@ import {
   FolderKanban, CheckCircle2, Wallet, Users, 
 } from 'lucide-react';
 import { projectTypeOf } from '../utils/projectTypes';
-import { resolveCycle, fmtCycleDate, toLocalDate } from '../utils/billingCycle';
+import { fmtCycleDate } from '../utils/billingCycle';
+import { useCyclePayments } from '../utils/cyclePayments';
 
 const NAVY = '#1B2E6B';
 const BLUE = '#2E6DB4';
@@ -62,43 +63,12 @@ export default function Dashboard() {
      (before the 15th we are still in the cycle that began on the 15th of last month).
      A cycle covers  start <= date < next start,  so a payment dated on the 15th belongs to the new cycle.
      Every amount on this card is in USD: each payment stores its USD value, converted at the live rate on the day the payment was added. */
-  const localDate = toLocalDate;
-  const startOfToday = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
-  const [today, setToday] = useState(startOfToday);
-  useEffect(() => {            // keep "today" (and therefore the cycle + overdue split) correct if the tab stays open past midnight
-    const id = setInterval(() => setToday(prev => { const n = startOfToday(); return n.getTime() === prev.getTime() ? prev : n; }), 60000);
-    return () => clearInterval(id);
-  }, []);
-  const cycle = useMemo(() => resolveCycle(billingCycle, today), [billingCycle, today]);   // saved in Settings (Super Admin), else automatic 15th-15th
+  /* Cycle = saved in Settings (Super Admin), else automatic 15th-15th.
+     The split into Received / Pending / Overdue lives in utils/cyclePayments.js and is shared with
+     the Payments page (/payments), so the numbers here and there always match. */
+  const { cycle, received: receivedInCycle, pending: pendingInCycle, overdue: overduePayments, earlierOverdue } = useCyclePayments(projects, billingCycle);
   // the office writes the range as "15 Oct - 15 Nov" (second date = the day the next cycle starts)
   const cycleTitle = `Payment Status Current Cycle (${fmtCycleDate(cycle.start)} - ${fmtCycleDate(cycle.end)})`;
-
-  /* Each payment has two dates:
-       due      = the Due Date typed by the user
-       received = the day it was marked "received" (saved automatically; older rows fall back to the due date)
-     The cycle date ("cycleDate") is the RECEIVED date for received payments and the DUE date for the rest. */
-  const allPayments = useMemo(() => projects.flatMap(p => (p.payments || [])
-    .filter(pay => pay.date || pay.receivedDate)
-    .map(pay => {
-      const due      = pay.date ? localDate(pay.date) : null;
-      const received = pay.status === 'received' ? (pay.receivedDate ? localDate(pay.receivedDate) : due) : null;
-      return { ...pay, due, received, cycleDate: received || due, projectName: p.name, projectId: p.id, currency: p.currency, currencyId: p.currencyId, amountUsd: pay.amountUsd };
-    })
-    .filter(pay => pay.cycleDate)), [projects]);
-
-  /* Every number below uses ONLY payments that fall inside the cycle shown in the title (start <= date < end):
-       Received = marked received, RECEIVED DATE in this cycle
-       Pending  = not received, due date in this cycle, due today or later
-       Overdue  = not received, due date in this cycle, due before today
-     Unpaid money from EARLIER cycles is not mixed in - it is shown separately underneath. */
-  const inCycle = (p) => p.cycleDate >= cycle.start && p.cycleDate < cycle.end;
-  const unpaid  = allPayments.filter(p => p.status !== 'received' && p.due);
-  const cyclePayments = allPayments.filter(inCycle);
-
-  const receivedInCycle  = cyclePayments.filter(p => p.status === 'received');
-  const pendingInCycle   = cyclePayments.filter(p => p.status !== 'received' && p.due >= today);
-  const overduePayments  = cyclePayments.filter(p => p.status !== 'received' && p.due < today);
-  const earlierOverdue   = unpaid.filter(p => p.due < cycle.start);
   const upcomingPayments = [...pendingInCycle].sort((a, b) => a.due - b.due).slice(0, 5);
   const amt = (p) => p.amount;
   const recvUsd = usdTotal(receivedInCycle, amt);
@@ -166,9 +136,9 @@ export default function Dashboard() {
             <Wallet size={16} color="var(--text-muted)"/>
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginBottom:16 }}>
-            <MiniStat label="Total Received In Current Cycle" value={fmtUsd(recvUsd.total)} count={receivedInCycle.length} color="var(--success)"/>
-            <MiniStat label="Total Pending In Current Cycle"  value={fmtUsd(pendUsd.total)} count={pendingInCycle.length}  color="var(--warning)"/>
-            <MiniStat label="Total Overdue Amount In Current Cycle"            value={fmtUsd(overUsd.total)} count={overduePayments.length} color={overUsd.total>0?'var(--danger)':'var(--text-muted)'}/>
+            <MiniStat label="Total Received In Current Cycle" value={fmtUsd(recvUsd.total)} count={receivedInCycle.length} color="var(--success)" onClick={() => navigate('/payments?status=received')}/>
+            <MiniStat label="Total Pending In Current Cycle"  value={fmtUsd(pendUsd.total)} count={pendingInCycle.length}  color="var(--warning)" onClick={() => navigate('/payments?status=pending')}/>
+            <MiniStat label="Total Overdue Amount In Current Cycle"            value={fmtUsd(overUsd.total)} count={overduePayments.length} color={overUsd.total>0?'var(--danger)':'var(--text-muted)'} onClick={() => navigate('/payments?status=overdue')}/>
           </div>
           {/*{earlierOverdue.length > 0 && (
             <div style={{ fontSize:12, color:'var(--danger)', marginBottom:12, textAlign:'center' }}>
@@ -345,9 +315,12 @@ function KpiCard({ icon, label, value, sub, accent, light, to, navigate, breakdo
   );
 }
 
-function MiniStat({ label, value, color, count }) {
+function MiniStat({ label, value, color, count, onClick }) {
   return (
-    <div style={{ textAlign:'center', padding:'10px 6px', borderRadius:9, background:'var(--bg-elevated)' }}>
+    <div onClick={onClick} title={onClick ? 'View these payments' : undefined}
+      onMouseEnter={e => { if (onClick) e.currentTarget.style.boxShadow = '0 0 0 1.5px #2E6DB4'; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}
+      style={{ textAlign:'center', padding:'10px 6px', borderRadius:9, background:'var(--bg-elevated)', cursor:onClick?'pointer':'default', transition:'box-shadow 0.12s' }}>
       <div style={{ fontSize:18, fontWeight:800, color, lineHeight:1.35 }}>{value}</div>
       <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5, lineHeight:1.3 }}>{label}</div>
       {count !== undefined && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, opacity:0.8 }}>{count} payment{count !== 1 ? 's' : ''}</div>}

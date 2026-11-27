@@ -1,6 +1,6 @@
 import { pmOwnerOptions } from '../utils/pmOwners';
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import {
   Card, StatusBadge, ProgressBar, Badge, Btn, Modal, Field,
@@ -50,13 +50,14 @@ export default function ProjectDetail() {
   const { id }       = useParams();
   const navigate     = useNavigate();
   const {
-    projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, canManage, canViewFinance, user,
+    projects, setProjects, clients, categories, users, currencies, activeCurrency, fmtFor, fmtPayment, canManage, canViewFinance, user,
   } = useApp();
 
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
-  const [tab, setTab]         = useState('overview');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab]         = useState(() => TABS.some(t => t.key === searchParams.get('tab')) ? searchParams.get('tab') : 'overview');   // e.g. /projects/5?tab=payments from the Payments page
 
   const [showEdit, setShowEdit]     = useState(false);
   const [editForm, setEditForm]     = useState({});
@@ -571,7 +572,13 @@ export default function ProjectDetail() {
                       </div>
                     </div>
                     <div style={{ textAlign:'right' }}>
-                      <div style={{ fontSize:20, fontWeight:800, color:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)' }}>{fmt(pay.amount)}</div>
+                      <div style={{ fontSize:20, fontWeight:800, color:PAY_STATUS_COLOR[pay.status]||'var(--text-muted)' }}>{fmtPayment(pay, project)}</div>
+                      {pay.currencyCode && projectCurrency?.code && pay.currencyCode.toUpperCase() !== projectCurrency.code.toUpperCase() && (
+                        <div title="This payment was saved in a different currency than the project. Edit and save this payment once to fix it, or ask your developer to run: php artisan payments:backfill-usd --mismatched"
+                          style={{ fontSize:11, color:'var(--danger)', fontWeight:600, marginTop:2 }}>
+                          Saved in {pay.currencyCode}, project is in {projectCurrency.code}
+                        </div>
+                      )}
                       {pay.amountUsd != null && pay.currencyCode && pay.currencyCode !== 'USD' && (
                         <div title={`Rate locked on ${pay.rateDate || 'creation'}: 1 ${pay.currencyCode} = ${pay.exchangeRate} USD`} style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
                           ≈ ${Number(pay.amountUsd).toLocaleString('en-US', { maximumFractionDigits: 2 })} USD
