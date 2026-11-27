@@ -15,7 +15,8 @@ import {
    1. Only LIVE work counts:  projects with status "active"  +  Digital contracts with status "active".
    2. A person's workload = number of live items they are assigned to:
         • Resources tab  -> items where the person is in the project's / contract's Resources list
-        • Project Managers -> projects where the person is the PM owner
+        • Project Managers -> projects + Digital contracts where the person is the PM owner
+                              (progress % = average completion of the PROJECTS only; contracts have no completion)
         • Business Development -> projects + contracts where the person is the BD owner
    3. Load level (resources):  0 = Available · 1–2 = Balanced · 3–4 = Busy · 5+ = Overloaded
    4. Money is shown in US $ only. Budgets / contract values are converted from the project's own
@@ -89,7 +90,7 @@ export default function ResourcesPage() {
       due: c.renewalDate, dueLabel: 'Renews',
       completion: null,
       resourceIds: (c.resourceIds || (c.resources || []).map(r => r.id) || []).map(String),
-      pmOwner: null, bdOwner: c.bdOwner,
+      pmOwner: c.pmOwner, bdOwner: c.bdOwner,
       link: `/maintenance/${c.id}`,
     }));
     return [...proj, ...contracts];
@@ -128,23 +129,27 @@ export default function ResourcesPage() {
 
   /* ── 2b. Project Managers ── */
   const pmRows = useMemo(() => {
-    const projItems = items.filter(i => i.kind === 'project');
+    // Projects + Digital contracts, grouped by PM owner
     const map = new Map();
-    projItems.forEach(i => {
+    items.forEach(i => {
       const k = i.pmOwner ? String(i.pmOwner) : 'none';
       if (!map.has(k)) map.set(k, []);
       map.get(k).push(i);
     });
     return [...map.entries()].map(([k, list]) => {
-      const l = withDates(list);
-      const budget = usdSum(l.map(i => i.raw), p => p.budget);
+      const l    = withDates(list);
+      const proj = l.filter(i => i.kind === 'project');
+      const cons = l.filter(i => i.kind === 'contract');
       return {
         key: k,
         user: k === 'none' ? { name: 'No PM assigned' } : (userById(k) || { name: l[0].raw.pmOwnerName || 'Unknown user' }),
         list: l, count: l.length,
-        avgCompletion: Math.round(l.reduce((s, i) => s + (i.completion || 0), 0) / l.length),
+        projects: proj.length, contracts: cons.length,
+        // completion exists only on projects -> null when the PM has contracts only
+        avgCompletion: proj.length ? Math.round(proj.reduce((s, i) => s + (i.completion || 0), 0) / proj.length) : null,
         overdue: overdueOf(l).length, dueSoon: dueSoonOf(l).length,
-        budget,
+        budget:  usdSum(proj.map(i => i.raw), p => p.budget),
+        monthly: usdSum(cons.map(i => i.raw), c => c.monthlyAmount),
       };
     }).sort((a, b) => (a.key === 'none') - (b.key === 'none') || b.count - a.count);
   }, [items, usdSum, users]);
@@ -231,7 +236,7 @@ export default function ResourcesPage() {
               Only <b>live</b> work: projects with status <b>Active</b> and Digital contracts with status <b>Active</b>. Completed, on-hold, paused and cancelled items are ignored.
             </HelpBlock>
             <HelpBlock n="2" title="How a person's load is counted">
-              One point for each live project or contract where the person is added under <b>Resources</b>. PMs are counted by projects they own, BD by projects and contracts they own.
+              One point for each live project or contract where the person is added under <b>Resources</b>. PMs and BD are counted by the projects and Digital contracts they own.
             </HelpBlock>
             <HelpBlock n="3" title="Load levels">
               {LEVELS.map(l => <span key={l.key} style={{ display:'inline-flex', alignItems:'center', gap:4, marginRight:10 }}><Dot c={l.color}/>{l.label} ({l.hint})</span>)}
@@ -382,9 +387,9 @@ export default function ResourcesPage() {
           {/* ══ PROJECT MANAGERS ═══════════════════════════════ */}
           {tab === 'pm' && (
             <Card>
-              <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:12 }}>Live projects owned by each PM. Budget = sum of those projects' budgets in US $. Progress = average completion.</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:12 }}>Live projects and Digital contracts owned by each PM. Budget = sum of those projects' budgets in US $; monthly contract value is shown separately. Progress = average completion of the projects (Digital contracts have no completion %).</div>
               {pmRows.length === 0
-                ? <EmptyState icon="👤" message="No live projects."/>
+                ? <EmptyState icon="👤" message="No live work."/>
                 : <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                     {pmRows.map(r => {
                       const k = `pm${r.key}`;
@@ -394,13 +399,21 @@ export default function ResourcesPage() {
                             {open[k] ? <ChevronDown size={14} color="var(--text-muted)"/> : <ChevronRight size={14} color="var(--text-muted)"/>}
                             <Avatar user={r.user} size={30} bg={r.key === 'none' ? '#A85010' : '#2E6DB4'}/>
                             <div style={{ flex:'1 1 150px', minWidth:0, fontSize:14, fontWeight:700 }}>{r.user.name}</div>
-                            <Badge label={`${r.count} project${r.count !== 1 ? 's' : ''}`} color="#2E6DB4"/>
+                            {r.projects > 0 && <Badge label={`${r.projects} project${r.projects !== 1 ? 's' : ''}`} color="#2E6DB4"/>}
+                            {r.contracts > 0 && <Badge label={`${r.contracts} digital`} color="#1A6B3C"/>}
                             {r.overdue > 0 && <Badge label={`${r.overdue} overdue`} color="var(--danger)"/>}
-                            <div style={{ display:'flex', alignItems:'center', gap:6, width:130 }}>
-                              <ProgressBar value={r.avgCompletion} color="#2E6DB4" height={5}/>
-                              <span style={{ fontSize:12, fontWeight:700, color:'#2E6DB4', minWidth:32 }}>{r.avgCompletion}%</span>
+                            <div style={{ display:'flex', alignItems:'center', gap:6, width:130 }} title={r.avgCompletion === null ? 'Digital contracts have no completion %' : `Average completion of ${r.projects} project${r.projects !== 1 ? 's' : ''}`}>
+                              {r.avgCompletion === null
+                                ? <span style={{ fontSize:12, color:'var(--text-muted)' }}>—</span>
+                                : <>
+                                    <ProgressBar value={r.avgCompletion} color="#2E6DB4" height={5}/>
+                                    <span style={{ fontSize:12, fontWeight:700, color:'#2E6DB4', minWidth:32 }}>{r.avgCompletion}%</span>
+                                  </>}
                             </div>
-                            <span style={{ fontSize:14, fontWeight:700, color:'var(--success)', minWidth:90, textAlign:'right' }}>{money(r.budget)}</span>
+                            <div style={{ textAlign:'right', minWidth:110 }}>
+                              {r.projects > 0 && <div style={{ fontSize:14, fontWeight:700, color:'var(--success)' }}>{money(r.budget)}</div>}
+                              {r.contracts > 0 && <div style={{ fontSize:12, fontWeight:700, color:'#1A6B3C' }}>{money(r.monthly, '/mo')}</div>}
+                            </div>
                           </div>
                           {open[k] && <ItemList list={r.list} navigate={navigate} showBudget/>}
                         </div>
